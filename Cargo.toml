@@ -41,7 +41,7 @@ dirs = "5"
 notify = { version = "7", optional = true }
 
 # HTTP Client (for AI and plugin registry)
-reqwest = { version = "0.12", features = ["json", "stream", "blocking"], optional = true }
+reqwest = { version = "0.13", features = ["json", "stream", "blocking"], optional = true }
 
 # Cryptography (for plugin checksum verification and webhook signatures)
 sha2 = "0.10"
