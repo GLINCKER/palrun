@@ -1,0 +1,37 @@
+# Poetry Scanner Plugin for Palrun
+#
+# This plugin scans Python Poetry projects and extracts available scripts
+# from pyproject.toml for use in the Palrun command palette.
+
+[plugin]
+name = "poetry-scanner"
+version = "0.1.0"
+author = "Palrun Community"
+description = "Scans Python Poetry projects for scripts and commands"
+type = "scanner"
+api_version = "0.1.0"
+license = "MIT"
+homepage = "https://github.com/GLINCKER/palrun"
+repository = "https://github.com/GLINCKER/palrun"
+keywords = ["poetry", "python", "pip", "pyproject"]
+
+[permissions]
+network = false
+execute = false
+environment = false
+
+[permissions.filesystem]
+read = true
+write = false
+paths = [
+    "pyproject.toml",
+    "poetry.lock",
+    "setup.py",
+    "requirements*.txt",
+]
+
+[config]
+# Include pip commands
+include_pip = true
+# Include pytest if detected
+include_pytest = true

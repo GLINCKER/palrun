@@ -1,0 +1,164 @@
+[package]
+name = "palrun"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+default-run = "palrun"
+authors = ["GLINR <hello@glinr.com>"]
+description = "AI command palette for your terminal - discover and run project commands instantly"
+license = "MIT"
+repository = "https://github.com/GLINCKER/palrun"
+homepage = "https://glinr.com/palrun"
+readme = "README.md"
+keywords = ["cli", "terminal", "tui", "command-palette", "ai", "monorepo", "productivity"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+# TUI Framework
+ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }
+crossterm = "0.28"
+
+# Fuzzy Search (from Helix editor)
+nucleo = "0.5"
+
+# CLI Parsing
+clap = { version = "4", features = ["derive", "env", "string", "wrap_help"] }
+clap_complete = "4"
+
+# Async Runtime
+tokio = { version = "1", features = ["full"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+toml = "0.8"
+
+# File System
+walkdir = "2"
+ignore = "0.4"
+dirs = "5"
+notify = { version = "7", optional = true }
+
+# HTTP Client (for AI)
+reqwest = { version = "0.12", features = ["json", "stream"], optional = true }
+
+# Git Integration
+git2 = { version = "0.19", optional = true }
+
+# Error Handling
+anyhow = "1"
+thiserror = "2"
+
+# Logging & Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Notifications
+notify-rust = { version = "4", optional = true }
+
+# Utilities
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+num_cpus = "1.16"
+regex = "1"
+shellexpand = "3"
+uuid = { version = "1", features = ["v4"] }
+once_cell = "1"
+parking_lot = "0.12"
+
+# Environment Management
+dotenvy = "0.15"
+
+# Async utilities
+futures = "0.3"
+async-trait = "0.1"
+
+# Plugin System (WASM)
+wasmtime = { version = "27", optional = true }
+
+[dev-dependencies]
+# CLI Testing
+assert_cmd = "2"
+predicates = "3"
+assert_fs = "1"
+tempfile = "3"
+
+# Snapshot Testing
+insta = { version = "1", features = ["yaml"] }
+
+# Async Testing
+tokio-test = "0.4"
+
+# Property Testing (optional)
+# proptest = "1"
+
+[features]
+default = ["ai", "git", "notifications"]
+ai = ["reqwest"]
+git = ["git2"]
+file-watch = ["notify"]
+notifications = ["notify-rust"]
+plugins = ["wasmtime"]
+full = ["ai", "git", "file-watch", "notifications", "plugins"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+opt-level = 3
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[[bin]]
+name = "palrun"
+path = "src/main.rs"
+
+[[bin]]
+name = "pal"
+path = "src/main.rs"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+# Lint groups with explicit priorities
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+
+# Allow some pedantic lints that are too strict for this project
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+similar_names = "allow"
+needless_raw_string_hashes = "allow"
+missing_const_for_fn = "allow"
+derivable_impls = "allow"
+multiple_crate_versions = "allow"
+needless_lifetimes = "allow"
+redundant_clone = "allow"
+map_unwrap_or = "allow"
+doc_markdown = "allow"
+unnecessary_wraps = "allow"
+return_self_not_must_use = "allow"
+# Additional lints to allow
+unnecessary_literal_bound = "allow"
+too_many_lines = "allow"
+redundant_closure_for_method_calls = "allow"
+manual_let_else = "allow"
+uninlined_format_args = "allow"
+items_after_statements = "allow"
+option_if_let_else = "allow"
+missing_fields_in_debug = "allow"
+significant_drop_tightening = "allow"
+cast_possible_truncation = "allow"
+for_kv_map = "allow"
+unnecessary_debug_formatting = "allow"

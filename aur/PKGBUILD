@@ -1,0 +1,59 @@
+# Maintainer: GLINCKER <contact@glincker.com>
+# Contributor: Palrun Contributors
+
+pkgname=palrun-bin
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="AI command palette for your terminal"
+arch=('x86_64' 'aarch64')
+url="https://github.com/GLINCKER/palrun"
+license=('MIT')
+provides=('palrun')
+conflicts=('palrun')
+depends=('gcc-libs')
+optdepends=(
+    'bash: for bash shell integration'
+    'zsh: for zsh shell integration'
+    'fish: for fish shell integration'
+)
+
+source_x86_64=("${pkgname}-${pkgver}-x86_64.tar.gz::https://github.com/GLINCKER/palrun/releases/download/v${pkgver}/palrun-v${pkgver}-x86_64-unknown-linux-gnu.tar.gz")
+source_aarch64=("${pkgname}-${pkgver}-aarch64.tar.gz::https://github.com/GLINCKER/palrun/releases/download/v${pkgver}/palrun-v${pkgver}-aarch64-unknown-linux-gnu.tar.gz")
+
+# SHA256 checksums - to be filled after release
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+    cd "$srcdir"
+
+    # Install binary
+    install -Dm755 palrun "$pkgdir/usr/bin/palrun"
+
+    # Create pal symlink
+    ln -s palrun "$pkgdir/usr/bin/pal"
+
+    # Install license
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE" 2>/dev/null || true
+}
+
+post_install() {
+    cat << EOF
+
+Palrun has been installed as both 'palrun' and 'pal'.
+
+To enable shell integration, add the following to your shell config:
+
+For bash (~/.bashrc):
+    eval "\$(palrun init bash)"
+
+For zsh (~/.zshrc):
+    eval "\$(palrun init zsh)"
+
+For fish (~/.config/fish/config.fish):
+    palrun init fish | source
+
+Run 'palrun --help' to see all available commands.
+
+EOF
+}

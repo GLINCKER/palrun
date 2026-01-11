@@ -1,0 +1,41 @@
+# Gradle Scanner Plugin for Palrun
+#
+# This plugin scans Gradle build files and extracts available tasks
+# for use in the Palrun command palette.
+
+[plugin]
+name = "gradle-scanner"
+version = "0.1.0"
+author = "Palrun Community"
+description = "Scans Gradle projects for available tasks"
+type = "scanner"
+api_version = "0.1.0"
+license = "MIT"
+homepage = "https://github.com/GLINCKER/palrun"
+repository = "https://github.com/GLINCKER/palrun"
+keywords = ["gradle", "java", "kotlin", "android", "build"]
+
+[permissions]
+network = false
+execute = false
+environment = false
+
+[permissions.filesystem]
+read = true
+write = false
+paths = [
+    "build.gradle",
+    "build.gradle.kts",
+    "settings.gradle",
+    "settings.gradle.kts",
+    "gradlew",
+    "gradle/**",
+]
+
+[config]
+# Maximum depth to scan for subprojects
+scan_depth = 3
+# Include subproject tasks
+include_subprojects = true
+# Task name patterns to exclude
+exclude_patterns = ["help", "components", "dependencies", "dependencyInsight"]

@@ -1,0 +1,18 @@
+[plugin]
+name = "composer-scanner"
+version = "0.1.0"
+author = "Palrun Contributors"
+description = "Scans PHP Composer projects for available scripts and commands"
+type = "scanner"
+api_version = "0.1.0"
+
+[plugin.permissions]
+filesystem = "read"
+network = false
+execute = false
+environment = []
+
+[config]
+# Default configuration options
+scan_vendor = false
+include_dev_scripts = true

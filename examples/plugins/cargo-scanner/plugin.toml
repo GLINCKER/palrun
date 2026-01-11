@@ -1,0 +1,19 @@
+[plugin]
+name = "cargo-scanner"
+version = "0.1.0"
+author = "Palrun Contributors"
+description = "Scans Rust Cargo projects for available commands and binaries"
+type = "scanner"
+api_version = "0.1.0"
+
+[plugin.permissions]
+filesystem = "read"
+network = false
+execute = false
+environment = []
+
+[config]
+# Default configuration options
+include_examples = true
+include_benches = true
+include_tests = true

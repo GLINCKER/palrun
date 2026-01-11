@@ -1,0 +1,72 @@
+# Maintainer: GLINCKER <contact@glincker.com>
+# Contributor: Palrun Contributors
+#
+# This PKGBUILD builds from source (palrun-git package)
+# For pre-built binaries, use palrun-bin instead
+
+pkgname=palrun-git
+pkgver=r0.1.0
+pkgrel=1
+pkgdesc="AI command palette for your terminal (git version)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/GLINCKER/palrun"
+license=('MIT')
+provides=('palrun')
+conflicts=('palrun' 'palrun-bin')
+makedepends=('rust' 'cargo' 'git')
+depends=('gcc-libs')
+optdepends=(
+    'bash: for bash shell integration'
+    'zsh: for zsh shell integration'
+    'fish: for fish shell integration'
+)
+
+source=("git+https://github.com/GLINCKER/palrun.git")
+sha256sums=('SKIP')
+
+pkgver() {
+    cd "$srcdir/palrun"
+    printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+    cd "$srcdir/palrun"
+    cargo build --release --locked
+}
+
+package() {
+    cd "$srcdir/palrun"
+
+    # Install binary
+    install -Dm755 "target/release/palrun" "$pkgdir/usr/bin/palrun"
+
+    # Create pal symlink
+    ln -s palrun "$pkgdir/usr/bin/pal"
+
+    # Install license
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE" 2>/dev/null || true
+
+    # Install documentation
+    install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}
+
+post_install() {
+    cat << EOF
+
+Palrun has been installed as both 'palrun' and 'pal'.
+
+To enable shell integration, add the following to your shell config:
+
+For bash (~/.bashrc):
+    eval "\$(palrun init bash)"
+
+For zsh (~/.zshrc):
+    eval "\$(palrun init zsh)"
+
+For fish (~/.config/fish/config.fish):
+    palrun init fish | source
+
+Run 'palrun --help' to see all available commands.
+
+EOF
+}

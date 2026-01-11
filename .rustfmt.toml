@@ -1,0 +1,14 @@
+# Palrun Rustfmt Configuration
+edition = "2021"
+max_width = 100
+use_small_heuristics = "Max"
+newline_style = "Unix"
+indent_style = "Block"
+tab_spaces = 4
+use_field_init_shorthand = true
+use_try_shorthand = true
+format_code_in_doc_comments = true
+imports_granularity = "Module"
+group_imports = "StdExternalCrate"
+reorder_imports = true
+reorder_modules = true

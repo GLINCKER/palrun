@@ -1,0 +1,8 @@
+# Palrun configuration
+
+[general]
+confirm_dangerous = true
+
+[hooks]
+pre_commit = "cargo test && cargo fmt --check"
+pre_push = "cargo clippy -- -D warnings"

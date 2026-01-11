@@ -1,0 +1,77 @@
+# Build artifacts
+/target/
+/debug/
+**/*.rs.bk
+**/target/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Environment
+.env
+.env.local
+.env.*.local
+.envrc
+
+# Test artifacts
+/coverage/
+*.profraw
+*.profdata
+lcov.info
+tarpaulin-report.html
+cobertura.xml
+
+# Logs
+*.log
+/logs/
+
+# Local config (user overrides)
+.palrun.local.toml
+palrun.local.toml
+
+# Temporary
+/tmp/
+*.tmp
+*.temp
+*.bak
+
+# Documentation build
+/docs/book/
+/target/doc/
+
+# Fuzzing
+/fuzz/artifacts/
+/fuzz/corpus/
+/fuzz/target/
+
+# Release artifacts
+*.tar.gz
+*.zip
+/dist/
+/release/
+
+# Cargo
+Cargo.lock.bak
+
+# Benchmarks
+/benchmark-results/
+*.bench
+
+# Generated files
+/src/generated/
+*.generated.rs
+
+# Internal documentation (keep local)
+/docs/
