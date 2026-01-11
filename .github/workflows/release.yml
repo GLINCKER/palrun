@@ -157,6 +157,7 @@ jobs:
     name: npm
     needs: [release]
     runs-on: ubuntu-latest
+    environment: npm-publish
     permissions:
       contents: read
       id-token: write
@@ -170,18 +171,24 @@ jobs:
 
       - name: Publish
         working-directory: npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           VERSION=${{ needs.release.outputs.version }}
           npm version $VERSION --no-git-tag-version --allow-same-version
+
+          # Check if version already exists
+          if npm view @glincker/palrun@$VERSION version 2>/dev/null; then
+            echo "Version $VERSION already exists on npm, skipping"
+            exit 0
+          fi
+
+          # Determine tag for prerelease versions
           if [[ "$VERSION" == *-* ]]; then
             TAG=$(echo "$VERSION" | sed 's/.*-\([a-zA-Z]*\).*/\1/')
             npm publish --access public --tag "$TAG" --provenance
           else
             npm publish --access public --provenance
           fi
-        continue-on-error: true  # Don't block release if npm fails
+        continue-on-error: true
 
   publish-crates:
     name: crates.io
