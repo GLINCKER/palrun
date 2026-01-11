@@ -203,7 +203,15 @@ jobs:
       # Configure trusted publisher at: npmjs.com > package settings > Trusted Publishers
       - name: Publish to npm (OIDC)
         working-directory: npm
-        run: npm publish --access public
+        run: |
+          VERSION=${{ needs.release.outputs.version }}
+          if [[ "$VERSION" == *"-"* ]]; then
+            # Prerelease version (contains hyphen: beta, alpha, rc)
+            TAG=$(echo "$VERSION" | sed 's/.*-\([a-zA-Z]*\).*/\1/')
+            npm publish --access public --tag "$TAG"
+          else
+            npm publish --access public
+          fi
 
   publish-crates:
     name: Publish to crates.io
