@@ -280,6 +280,10 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Delete existing branch if it exists (from previous failed run)
+          git push origin --delete "$BRANCH" 2>/dev/null || true
+
           git checkout -b "$BRANCH"
           git add HomebrewFormula/palrun.rb
           git commit -m "chore(homebrew): update formula to v${VERSION}" || exit 0
