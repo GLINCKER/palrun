@@ -15,8 +15,10 @@ mod executor;
 mod filter;
 mod history;
 mod network;
+mod offline;
 mod parallel;
 mod registry;
+mod resilience;
 mod retry;
 
 pub use analytics::{
@@ -38,6 +40,9 @@ pub use config::Config;
 #[cfg(feature = "git")]
 pub use config::HooksConfig;
 pub use context::{CommandContext, ContextFilter, LocationIndicator};
+pub use degradation::{
+    with_fallback, DegradationManager, DegradationReason, DegradedFeature, FallbackResult, Feature,
+};
 pub use executor::{ExecutionResult, Executor};
 pub use filter::{
     filter_by_source, filter_by_tag, filter_by_workspace, get_source_types, get_tags,
@@ -45,13 +50,11 @@ pub use filter::{
 };
 pub use history::{CommandHistory, HistoryEntry, HistoryManager};
 pub use network::{NetworkChecker, NetworkStatus, ServiceChecker};
+pub use offline::{OfflineManager, OfflineQueue, QueueEntry, QueueSummary, QueuedOperation};
 pub use parallel::{
     ParallelExecutor, ParallelProcess, ParallelResult, ProcessEvent, ProcessId, ProcessOutput,
     ProcessStatus,
 };
 pub use registry::CommandRegistry;
-pub use retry::{retry, CircuitBreaker, CircuitState, RetryConfig, RetryResult};
-pub use degradation::{
-    DegradationManager, DegradationReason, DegradedFeature, FallbackResult, Feature,
-    with_fallback,
-};
+pub use resilience::{execute_resilient, FeatureResilience, ResilienceManager, ResilientResult};
+pub use retry::{retry, retry_async, CircuitBreaker, CircuitState, RetryConfig, RetryResult};

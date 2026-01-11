@@ -546,10 +546,7 @@ fn draw_preview_panel(frame: &mut Frame, app: &App, area: Rect) {
         for degraded in app.degradation.degraded_features() {
             lines.push(Line::from(vec![
                 Span::styled("⚠ ", Style::default().fg(theme.warning)),
-                Span::styled(
-                    format!("{}", degraded.feature),
-                    Style::default().fg(theme.warning),
-                ),
+                Span::styled(format!("{}", degraded.feature), Style::default().fg(theme.warning)),
             ]));
             if let Some(ref fallback) = degraded.fallback {
                 lines.push(Line::from(Span::styled(
@@ -577,6 +574,18 @@ fn draw_preview_panel(frame: &mut Frame, app: &App, area: Rect) {
         lines.push(Line::from(vec![
             Span::styled("✦ ", Style::default().fg(theme.success)),
             Span::styled(ai_status.as_str(), Style::default().fg(theme.text_dim)),
+        ]));
+    }
+
+    // Show offline queue status if there are pending operations
+    if !app.offline_manager.queue().is_empty() {
+        let summary = app.offline_manager.queue().summary();
+        lines.push(Line::from(vec![
+            Span::styled("⏳ ", Style::default().fg(theme.secondary)),
+            Span::styled(
+                format!("{} ops queued", summary.total),
+                Style::default().fg(theme.text_muted),
+            ),
         ]));
     }
 

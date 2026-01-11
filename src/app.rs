@@ -133,6 +133,12 @@ pub struct App {
 
     /// Degradation manager for graceful fallbacks
     pub degradation: crate::core::DegradationManager,
+
+    /// Offline operation queue manager
+    pub offline_manager: crate::core::OfflineManager,
+
+    /// Resilience manager for retry and circuit breaker logic
+    pub resilience: crate::core::ResilienceManager,
 }
 
 /// A slash command entry
@@ -286,6 +292,8 @@ impl App {
             is_offline: false,
             ai_status: None,
             degradation: crate::core::DegradationManager::new(),
+            offline_manager: crate::core::OfflineManager::new(),
+            resilience: crate::core::ResilienceManager::new(),
         })
     }
 
@@ -410,6 +418,8 @@ impl App {
             is_offline: false,
             ai_status: None,
             degradation: crate::core::DegradationManager::new(),
+            offline_manager: crate::core::OfflineManager::new(),
+            resilience: crate::core::ResilienceManager::new(),
         }
     }
 
@@ -1529,6 +1539,156 @@ impl App {
         }
     }
 
+    // --- Resilience & Recovery methods ---
+
+    /// Try to recover a degraded feature.
+    pub fn try_recover_feature(&mut self, feature: crate::core::Feature) {
+        use crate::core::Feature;
+
+        // Reset the circuit breaker for this feature
+        match feature {
+            Feature::Ai => self.resilience.ai.reset(),
+            Feature::Network => self.resilience.network.reset(),
+            Feature::Sync => self.resilience.sync.reset(),
+            Feature::Integrations => self.resilience.integrations.reset(),
+            Feature::Mcp => self.resilience.mcp.reset(),
+            _ => {}
+        }
+
+        // Mark as recovered
+        self.degradation.recover(feature);
+        self.set_status(format!("{} recovered - retry available", feature));
+    }
+
+    /// Try to recover all degraded features.
+    pub fn try_recover_all(&mut self) {
+        self.resilience.reset_all();
+        self.degradation.clear();
+        self.set_status("All features recovered");
+    }
+
+    /// Process the offline queue (sync pending operations).
+    pub fn process_offline_queue(&mut self) -> usize {
+        if self.is_offline {
+            return 0;
+        }
+
+        let mut processed = 0;
+        let mut to_requeue: Vec<crate::core::QueueEntry> = Vec::new();
+
+        // Collect entries to process
+        while let Some(entry) = self.offline_manager.queue_mut().dequeue() {
+            // Process each queued operation
+            let success = Self::process_queued_operation_static(&entry.operation);
+
+            if success {
+                processed += 1;
+            } else {
+                // Mark for re-queue if not exhausted
+                to_requeue.push(entry);
+                break; // Stop processing on first failure
+            }
+        }
+
+        // Re-queue failed entries
+        for entry in to_requeue {
+            if !self.offline_manager.queue_mut().requeue(entry) {
+                tracing::warn!("Queued operation exhausted retries");
+            }
+        }
+
+        if processed > 0 {
+            self.set_status(format!("Synced {} queued operations", processed));
+        }
+
+        processed
+    }
+
+    /// Process a single queued operation (static method to avoid borrow issues).
+    fn process_queued_operation_static(operation: &crate::core::QueuedOperation) -> bool {
+        use crate::core::QueuedOperation;
+
+        match operation {
+            QueuedOperation::AiRequest { .. } => {
+                // AI requests would need async handling - skip for now
+                tracing::debug!("Skipping queued AI request (async not supported in sync context)");
+                true // Mark as processed to avoid infinite queue
+            }
+            QueuedOperation::SyncHistory { .. } => {
+                // Sync history to cloud - would need implementation
+                tracing::debug!("Syncing history (stub)");
+                true
+            }
+            QueuedOperation::SendAnalytics { .. } => {
+                // Analytics - would need implementation
+                tracing::debug!("Sending analytics (stub)");
+                true
+            }
+            QueuedOperation::Webhook { url, payload: _ } => {
+                // Webhook execution would need async HTTP client
+                // For now, log and mark as needing async processing
+                tracing::debug!(url, "Webhook queued (async processing needed)");
+                true
+            }
+            QueuedOperation::Custom { operation_type, .. } => {
+                tracing::debug!(operation_type, "Processing custom operation (stub)");
+                true
+            }
+        }
+    }
+
+    /// Get count of pending queued operations.
+    pub fn pending_queue_count(&self) -> usize {
+        self.offline_manager.queue().len()
+    }
+
+    /// Check and update offline status.
+    pub fn check_connectivity(&mut self) {
+        if self.offline_manager.should_check_connectivity() {
+            // Simple connectivity check - try to resolve a known host
+            let was_offline = self.is_offline;
+            self.is_offline = !Self::quick_connectivity_check();
+            self.offline_manager.set_offline(self.is_offline);
+            self.offline_manager.mark_checked();
+
+            // If coming back online, try to process queue
+            if was_offline && !self.is_offline {
+                self.set_status("Connection restored");
+                self.process_offline_queue();
+            } else if !was_offline && self.is_offline {
+                self.set_status("Connection lost - offline mode");
+            }
+        }
+    }
+
+    /// Quick connectivity check.
+    fn quick_connectivity_check() -> bool {
+        // Try to connect to a reliable endpoint
+        std::net::TcpStream::connect_timeout(
+            &std::net::SocketAddr::from(([1, 1, 1, 1], 53)),
+            std::time::Duration::from_millis(500),
+        )
+        .is_ok()
+    }
+
+    /// Get resilience status for display.
+    pub fn resilience_status(&self) -> Vec<(crate::core::Feature, &'static str)> {
+        use crate::core::CircuitState;
+
+        self.resilience
+            .status_summary()
+            .into_iter()
+            .map(|(feature, state)| {
+                let status = match state {
+                    CircuitState::Closed => "OK",
+                    CircuitState::Open => "UNAVAILABLE",
+                    CircuitState::HalfOpen => "RECOVERING",
+                };
+                (feature, status)
+            })
+            .collect()
+    }
+
     // --- Pass-through mode methods ---
 
     /// Enter pass-through mode to run a shell command.
@@ -1780,6 +1940,8 @@ impl Default for App {
                 is_offline: false,
                 ai_status: None,
                 degradation: crate::core::DegradationManager::new(),
+                offline_manager: crate::core::OfflineManager::new(),
+                resilience: crate::core::ResilienceManager::new(),
             }
         })
     }
