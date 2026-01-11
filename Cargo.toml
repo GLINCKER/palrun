@@ -37,7 +37,7 @@ toml = "0.8"
 # File System
 walkdir = "2"
 ignore = "0.4"
-dirs = "5"
+dirs = "6"
 notify = { version = "7", optional = true }
 
 # HTTP Client (for AI and plugin registry) - using rustls for cross-platform builds
