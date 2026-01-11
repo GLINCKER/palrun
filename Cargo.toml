@@ -50,7 +50,7 @@ sha2 = "0.10"
 tempfile = { version = "3", optional = true }
 
 # Git Integration
-git2 = { version = "0.19", optional = true }
+git2 = { version = "0.20", optional = true }
 
 # Error Handling
 anyhow = "1"
