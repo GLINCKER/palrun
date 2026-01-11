@@ -1,6 +1,6 @@
 {
-  "name": "@glinr/palrun",
-  "version": "0.1.0",
+  "name": "@glincker/palrun",
+  "version": "0.1.0-beta.1",
   "description": "AI command palette for your terminal - discover and run project commands instantly",
   "keywords": [
     "cli",
@@ -10,7 +10,11 @@
     "ai",
     "monorepo",
     "productivity",
-    "developer-tools"
+    "developer-tools",
+    "devtools",
+    "npm-scripts",
+    "make",
+    "cargo"
   ],
   "author": "GLINR <hello@glinr.com>",
   "license": "MIT",
@@ -22,6 +26,10 @@
   "bugs": {
     "url": "https://github.com/GLINCKER/palrun/issues"
   },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/GLINCKER"
+  },
   "bin": {
     "palrun": "bin/palrun",
     "pal": "bin/palrun"
@@ -32,10 +40,11 @@
   },
   "files": [
     "bin/",
-    "scripts/"
+    "scripts/",
+    "README.md"
   ],
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=16.0.0"
   },
   "os": [
     "darwin",
@@ -45,5 +54,9 @@
   "cpu": [
     "x64",
     "arm64"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
 }

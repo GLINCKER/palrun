@@ -1,6 +1,6 @@
 [package]
 name = "palrun"
-version = "0.1.0"
+version = "0.1.0-beta.1"
 edition = "2021"
 rust-version = "1.82"
 default-run = "palrun"
@@ -40,8 +40,8 @@ ignore = "0.4"
 dirs = "5"
 notify = { version = "7", optional = true }
 
-# HTTP Client (for AI and plugin registry)
-reqwest = { version = "0.12", features = ["json", "stream", "blocking"], optional = true }
+# HTTP Client (for AI and plugin registry) - using rustls for cross-platform builds
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "blocking", "rustls-tls"], optional = true }
 
 # Cryptography (for plugin checksum verification and webhook signatures)
 sha2 = "0.10"

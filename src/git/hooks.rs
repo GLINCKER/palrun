@@ -4,8 +4,10 @@
 //! that integrate with Palrun commands.
 
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 use anyhow::{Context, Result};
 
@@ -254,13 +256,17 @@ fn is_executable(path: &Path) -> bool {
 }
 
 /// Make a file executable.
+#[cfg(unix)]
 fn make_executable(path: &Path) -> Result<()> {
-    #[cfg(unix)]
-    {
-        let mut perms = fs::metadata(path)?.permissions();
-        perms.set_mode(perms.mode() | 0o755);
-        fs::set_permissions(path, perms)?;
-    }
+    let mut perms = fs::metadata(path)?.permissions();
+    perms.set_mode(perms.mode() | 0o755);
+    fs::set_permissions(path, perms)?;
+    Ok(())
+}
+
+/// Make a file executable (no-op on Windows).
+#[cfg(not(unix))]
+fn make_executable(_path: &Path) -> Result<()> {
     Ok(())
 }
 
