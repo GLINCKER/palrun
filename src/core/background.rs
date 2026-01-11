@@ -232,10 +232,7 @@ impl BackgroundManager {
                 .arg(shell_arg)
                 .arg(&cmd.command)
                 .current_dir(
-                    cmd.working_dir
-                        .as_ref()
-                        .map(|p| p.as_path())
-                        .unwrap_or_else(|| std::path::Path::new(".")),
+                    cmd.working_dir.as_deref().unwrap_or_else(|| std::path::Path::new(".")),
                 )
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())

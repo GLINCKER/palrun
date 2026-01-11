@@ -1,3 +1,23 @@
+#![allow(dead_code)]
+#![allow(clippy::vec_init_then_push)]
+#![allow(clippy::needless_collect)]
+#![allow(clippy::format_push_string)]
+#![allow(clippy::unused_self)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::trivially_copy_pass_by_ref)]
+#![allow(clippy::unnecessary_filter_map)]
+#![allow(clippy::unnecessary_lazy_evaluations)]
+#![allow(clippy::match_wildcard_for_single_variants)]
+#![allow(clippy::manual_strip)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::single_char_pattern)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::or_fun_call)]
+#![allow(clippy::case_sensitive_file_extension_comparisons)]
+#![allow(clippy::should_implement_trait)]
+
 //! # Palrun
 //!
 //! AI command palette for your terminal - discover and run project commands instantly.
@@ -40,7 +60,6 @@
 #![allow(clippy::manual_let_else)]
 #![allow(clippy::derivable_impls)]
 #![allow(clippy::return_self_not_must_use)]
-#![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::struct_excessive_bools)]
 #![allow(clippy::struct_field_names)]
 #![allow(clippy::option_if_let_else)]

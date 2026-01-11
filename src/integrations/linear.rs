@@ -239,7 +239,7 @@ impl LinearClient {
             viewer: LinearUser,
         }
 
-        let query = r#"
+        let query = r"
             query {
                 viewer {
                     id
@@ -248,7 +248,7 @@ impl LinearClient {
                     displayName
                 }
             }
-        "#;
+        ";
 
         let response: Response = self.query(query, None).await?;
         Ok(response.viewer)
@@ -266,7 +266,7 @@ impl LinearClient {
             teams: TeamsNode,
         }
 
-        let query = r#"
+        let query = r"
             query {
                 teams {
                     nodes {
@@ -276,7 +276,7 @@ impl LinearClient {
                     }
                 }
             }
-        "#;
+        ";
 
         let response: Response = self.query(query, None).await?;
         Ok(response.teams.nodes)
@@ -325,7 +325,7 @@ impl LinearClient {
             filters.insert("state", serde_json::json!({ "type": { "eq": state_type } }));
         }
 
-        let query = r#"
+        let query = r"
             query ListIssues($first: Int!, $filter: IssueFilter) {
                 issues(first: $first, filter: $filter) {
                     nodes {
@@ -361,7 +361,7 @@ impl LinearClient {
                     }
                 }
             }
-        "#;
+        ";
 
         let variables = serde_json::json!({
             "first": limit,
@@ -384,7 +384,7 @@ impl LinearClient {
             issues: IssuesNode,
         }
 
-        let query = r#"
+        let query = r"
             query GetIssue($filter: IssueFilter) {
                 issues(filter: $filter, first: 1) {
                     nodes {
@@ -420,7 +420,7 @@ impl LinearClient {
                     }
                 }
             }
-        "#;
+        ";
 
         let (team_key, number) = identifier.split_once('-').ok_or_else(|| {
             LinearError::InvalidInput(format!(
@@ -476,7 +476,7 @@ impl LinearClient {
             issue_create: IssuePayload,
         }
 
-        let query = r#"
+        let query = r"
             mutation CreateIssue($input: IssueCreateInput!) {
                 issueCreate(input: $input) {
                     issue {
@@ -512,7 +512,7 @@ impl LinearClient {
                     }
                 }
             }
-        "#;
+        ";
 
         let mut input: HashMap<&str, serde_json::Value> = HashMap::new();
         input.insert("title", serde_json::json!(options.title));
@@ -560,7 +560,7 @@ impl LinearClient {
             issue_update: IssuePayload,
         }
 
-        let query = r#"
+        let query = r"
             mutation UpdateIssue($id: String!, $input: IssueUpdateInput!) {
                 issueUpdate(id: $id, input: $input) {
                     issue {
@@ -596,7 +596,7 @@ impl LinearClient {
                     }
                 }
             }
-        "#;
+        ";
 
         let variables = serde_json::json!({
             "id": issue_id,
@@ -624,7 +624,7 @@ impl LinearClient {
             team: Team,
         }
 
-        let query = r#"
+        let query = r"
             query GetTeamStates($teamId: String!) {
                 team(id: $teamId) {
                     states {
@@ -637,7 +637,7 @@ impl LinearClient {
                     }
                 }
             }
-        "#;
+        ";
 
         let variables = serde_json::json!({ "teamId": team_id });
 
@@ -658,7 +658,7 @@ impl LinearClient {
             issue_search: SearchNode,
         }
 
-        let query = r#"
+        let query = r"
             query SearchIssues($query: String!) {
                 issueSearch(query: $query, first: 25) {
                     nodes {
@@ -694,7 +694,7 @@ impl LinearClient {
                     }
                 }
             }
-        "#;
+        ";
 
         let variables = serde_json::json!({ "query": query_str });
 

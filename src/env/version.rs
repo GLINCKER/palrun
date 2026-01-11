@@ -790,10 +790,10 @@ requires-python = ">=3.10"
         create_test_file(
             temp.path(),
             "go.mod",
-            r#"module example.com/test
+            r"module example.com/test
 
 go 1.22
-"#,
+",
         );
 
         let mut manager = VersionManager::new(temp.path());
@@ -809,12 +809,12 @@ go 1.22
         create_test_file(
             temp.path(),
             ".tool-versions",
-            r#"nodejs 20.10.0
+            r"nodejs 20.10.0
 python 3.12.0
 rust 1.82.0
 golang 1.22.0
 ruby 3.3.0
-"#,
+",
         );
 
         let mut manager = VersionManager::new(temp.path());

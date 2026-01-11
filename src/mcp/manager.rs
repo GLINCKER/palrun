@@ -166,7 +166,7 @@ impl MCPManager {
         let client = self
             .clients
             .get_mut(&server_name)
-            .ok_or_else(|| MCPManagerError::ServerNotFound(server_name))?;
+            .ok_or(MCPManagerError::ServerNotFound(server_name))?;
 
         let result = client.call_tool(tool_name, arguments)?;
         Ok(result)

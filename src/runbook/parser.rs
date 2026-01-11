@@ -145,10 +145,10 @@ steps:
 
     #[test]
     fn test_parse_no_steps_fails() {
-        let yaml = r#"
+        let yaml = r"
 name: test
 steps: []
-"#;
+";
 
         let result = parse_runbook_str(yaml);
         assert!(result.is_err());

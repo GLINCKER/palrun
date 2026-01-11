@@ -517,7 +517,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let mut manager = CaptureManager::with_dir(temp_dir.path().to_path_buf()).unwrap();
 
-        let id = manager
+        let _id = manager
             .capture(
                 "search_test",
                 "echo searchable",

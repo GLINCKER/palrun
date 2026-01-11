@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_parse_simple_taskfile() {
-        let yaml = r#"
+        let yaml = r"
 version: '3'
 
 tasks:
@@ -168,7 +168,7 @@ tasks:
     desc: Run linters
     cmds:
       - golangci-lint run
-"#;
+";
 
         let taskfile: Taskfile = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(taskfile.version, Some("3".to_string()));
@@ -182,7 +182,7 @@ tasks:
 
     #[test]
     fn test_parse_task_with_deps() {
-        let yaml = r#"
+        let yaml = r"
 version: '3'
 
 tasks:
@@ -196,7 +196,7 @@ tasks:
     desc: Generate code
     cmds:
       - go generate ./...
-"#;
+";
 
         let taskfile: Taskfile = serde_yaml::from_str(yaml).unwrap();
         let tasks = taskfile.tasks.unwrap();

@@ -458,13 +458,13 @@ mod tests {
         create_test_file(
             temp.path(),
             ".env",
-            r#"
+            r"
 # Database config
 DB_HOST=localhost
 DB_PASSWORD=op://vault/database/password
 API_KEY=vault://secret/api#key
 PORT=3000
-"#,
+",
         );
 
         let mut manager = SecretsManager::new(temp.path());
@@ -489,11 +489,11 @@ PORT=3000
         create_test_file(
             temp.path(),
             ".env",
-            r#"
+            r"
 SECRET1=op://vault/item1/field
 SECRET2=op://vault/item2/field
 SECRET3=vault://path/secret#field
-"#,
+",
         );
 
         let mut manager = SecretsManager::new(temp.path());

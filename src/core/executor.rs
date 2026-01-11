@@ -278,6 +278,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_execute_with_working_dir() {
         let executor = Executor::new().capture(true);
         let command = Command::new("pwd", "pwd").with_working_dir("/tmp");

@@ -1524,9 +1524,7 @@ fn cmd_env(operation: EnvOperation) -> Result<()> {
 
             let diff = manager.compare_env_files(&path1, &path2)?;
 
-            if !diff.has_differences() {
-                println!("No differences found between {} and {}", file1, file2);
-            } else {
+            if diff.has_differences() {
                 println!("Differences between {} and {}:\n", file1, file2);
 
                 if !diff.only_in_first.is_empty() {
@@ -1553,6 +1551,8 @@ fn cmd_env(operation: EnvOperation) -> Result<()> {
                         println!("    {}: {}", file2, val2);
                     }
                 }
+            } else {
+                println!("No differences found between {} and {}", file1, file2);
             }
         }
 
@@ -1626,9 +1626,8 @@ fn cmd_versions(show_all: bool) -> Result<()> {
             let name = version.runtime.name();
             let status = version.status_icon();
 
-            let required_str = version.required.as_ref().map(|v| v.as_str()).unwrap_or("-");
-            let current_str =
-                version.current.as_ref().map(|v| v.as_str()).unwrap_or("not installed");
+            let required_str = version.required.as_deref().unwrap_or("-");
+            let current_str = version.current.as_deref().unwrap_or("not installed");
 
             let source_str = version
                 .source
@@ -1641,7 +1640,7 @@ fn cmd_versions(show_all: bool) -> Result<()> {
             println!("      Required: {} (from {})", required_str, source_str);
             println!("      Current:  {}", current_str);
 
-            if let Some(false) = version.is_compatible {
+            if version.is_compatible == Some(false) {
                 println!("      ⚠️  Version mismatch detected!");
             }
 
@@ -2300,10 +2299,9 @@ description = "{}"
             if plugins_to_check.is_empty() {
                 if let Some(ref plugin_name) = name {
                     anyhow::bail!("Plugin '{}' is not installed", plugin_name);
-                } else {
-                    println!("No plugins installed.");
-                    return Ok(());
                 }
+                println!("No plugins installed.");
+                return Ok(());
             }
 
             println!("Checking for updates...\n");
@@ -3285,9 +3283,8 @@ fn cmd_mcp(operation: McpOperation) -> Result<()> {
             if servers.is_empty() {
                 if let Some(name) = server {
                     anyhow::bail!("Server '{}' not found.", name);
-                } else {
-                    anyhow::bail!("No MCP servers configured.");
                 }
+                anyhow::bail!("No MCP servers configured.");
             }
 
             // Start servers and list tools

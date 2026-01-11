@@ -109,7 +109,7 @@ impl HistoryEntry {
         };
 
         // Frequency factor (log scale to prevent very frequent commands from dominating)
-        let frequency_factor = (self.execution_count as f64 + 1.0).ln();
+        let frequency_factor = f64::from(self.execution_count).ln_1p();
 
         frequency_factor * recency_weight
     }
@@ -117,7 +117,7 @@ impl HistoryEntry {
     /// Get average execution duration.
     pub fn average_duration(&self) -> Option<Duration> {
         if self.execution_count > 0 {
-            let avg_ms = self.total_duration_ms / self.execution_count as u64;
+            let avg_ms = self.total_duration_ms / u64::from(self.execution_count);
             Some(Duration::from_millis(avg_ms))
         } else {
             None
@@ -127,7 +127,7 @@ impl HistoryEntry {
     /// Get success rate as a percentage.
     pub fn success_rate(&self) -> Option<f64> {
         if self.execution_count > 0 {
-            Some((self.success_count as f64 / self.execution_count as f64) * 100.0)
+            Some((f64::from(self.success_count) / f64::from(self.execution_count)) * 100.0)
         } else {
             None
         }
