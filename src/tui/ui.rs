@@ -540,8 +540,31 @@ fn draw_preview_panel(frame: &mut Frame, app: &App, area: Rect) {
         }
     }
 
-    // --- Network/AI Status (when relevant) ---
-    if app.is_offline {
+    // --- Network/AI Status and Degradation Info ---
+    if app.degradation.has_degradations() {
+        // Show degraded features with recovery hints
+        for degraded in app.degradation.degraded_features() {
+            lines.push(Line::from(vec![
+                Span::styled("⚠ ", Style::default().fg(theme.warning)),
+                Span::styled(
+                    format!("{}", degraded.feature),
+                    Style::default().fg(theme.warning),
+                ),
+            ]));
+            if let Some(ref fallback) = degraded.fallback {
+                lines.push(Line::from(Span::styled(
+                    format!("  Using: {}", fallback),
+                    Style::default().fg(theme.text_muted),
+                )));
+            }
+            if let Some(ref hint) = degraded.recovery_hint {
+                lines.push(Line::from(Span::styled(
+                    format!("  Fix: {}", hint),
+                    Style::default().fg(theme.text_dim).add_modifier(Modifier::ITALIC),
+                )));
+            }
+        }
+    } else if app.is_offline {
         lines.push(Line::from(vec![
             Span::styled("⚡ ", Style::default().fg(theme.warning)),
             Span::styled("Offline Mode", Style::default().fg(theme.warning)),
@@ -745,8 +768,15 @@ fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
         Style::default().fg(theme.text_muted),
     ));
 
-    // Offline indicator
-    if app.is_offline {
+    // Degradation/Offline indicator
+    if app.degradation.has_degradations() {
+        let count = app.degradation.degraded_features().len();
+        left_spans.push(Span::styled(" │ ", Style::default().fg(theme.border)));
+        left_spans.push(Span::styled(
+            format!("⚠ {} degraded", count),
+            Style::default().fg(theme.warning),
+        ));
+    } else if app.is_offline {
         left_spans.push(Span::styled(" │ ", Style::default().fg(theme.border)));
         left_spans.push(Span::styled(
             "OFFLINE",

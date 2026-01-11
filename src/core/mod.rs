@@ -10,6 +10,7 @@ mod chain;
 mod command;
 mod config;
 mod context;
+mod degradation;
 mod executor;
 mod filter;
 mod history;
@@ -50,3 +51,7 @@ pub use parallel::{
 };
 pub use registry::CommandRegistry;
 pub use retry::{retry, CircuitBreaker, CircuitState, RetryConfig, RetryResult};
+pub use degradation::{
+    DegradationManager, DegradationReason, DegradedFeature, FallbackResult, Feature,
+    with_fallback,
+};

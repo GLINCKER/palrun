@@ -130,6 +130,9 @@ pub struct App {
 
     /// AI provider status message
     pub ai_status: Option<String>,
+
+    /// Degradation manager for graceful fallbacks
+    pub degradation: crate::core::DegradationManager,
 }
 
 /// A slash command entry
@@ -282,6 +285,7 @@ impl App {
             slash_selected: 0,
             is_offline: false,
             ai_status: None,
+            degradation: crate::core::DegradationManager::new(),
         })
     }
 
@@ -405,6 +409,7 @@ impl App {
             slash_selected: 0,
             is_offline: false,
             ai_status: None,
+            degradation: crate::core::DegradationManager::new(),
         }
     }
 
@@ -1774,6 +1779,7 @@ impl Default for App {
                 slash_selected: 0,
                 is_offline: false,
                 ai_status: None,
+                degradation: crate::core::DegradationManager::new(),
             }
         })
     }
