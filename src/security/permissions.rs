@@ -311,6 +311,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_permission_level_modes() {
         assert_eq!(PermissionLevel::OwnerOnly.required_mode(), Some(0o600));
         assert_eq!(PermissionLevel::GroupReadable.required_mode(), Some(0o640));

@@ -116,7 +116,7 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
             && !ghost.is_empty()
         {
             // Calculate what part of ghost to show (excluding already typed prefix)
-            let last_segment = app.input.split(['/', ' ']).last().unwrap_or("");
+            let last_segment = app.input.split(['/', ' ']).next_back().unwrap_or("");
             let ghost_suffix = if ghost.to_lowercase().starts_with(&last_segment.to_lowercase()) {
                 &ghost[last_segment.len()..]
             } else {
@@ -530,7 +530,7 @@ fn draw_preview_panel(frame: &mut Frame, app: &App, area: Rect) {
         let sources: std::collections::HashSet<_> =
             app.registry.get_all().iter().map(|c| c.source.short_name()).collect();
         let mut project_types: Vec<_> = sources.into_iter().collect();
-        project_types.sort(); // Sort for consistent ordering
+        project_types.sort_unstable(); // Sort for consistent ordering
         let project_types: Vec<_> = project_types.into_iter().take(3).collect();
         if !project_types.is_empty() {
             lines.push(Line::from(vec![
@@ -546,10 +546,7 @@ fn draw_preview_panel(frame: &mut Frame, app: &App, area: Rect) {
         for degraded in app.degradation.degraded_features() {
             lines.push(Line::from(vec![
                 Span::styled("⚠ ", Style::default().fg(theme.warning)),
-                Span::styled(
-                    format!("{}", degraded.feature),
-                    Style::default().fg(theme.warning),
-                ),
+                Span::styled(format!("{}", degraded.feature), Style::default().fg(theme.warning)),
             ]));
             if let Some(ref fallback) = degraded.fallback {
                 lines.push(Line::from(Span::styled(
@@ -577,6 +574,18 @@ fn draw_preview_panel(frame: &mut Frame, app: &App, area: Rect) {
         lines.push(Line::from(vec![
             Span::styled("✦ ", Style::default().fg(theme.success)),
             Span::styled(ai_status.as_str(), Style::default().fg(theme.text_dim)),
+        ]));
+    }
+
+    // Show offline queue status if there are pending operations
+    if !app.offline_manager.queue().is_empty() {
+        let summary = app.offline_manager.queue().summary();
+        lines.push(Line::from(vec![
+            Span::styled("⏳ ", Style::default().fg(theme.secondary)),
+            Span::styled(
+                format!("{} ops queued", summary.total),
+                Style::default().fg(theme.text_muted),
+            ),
         ]));
     }
 
@@ -859,14 +868,13 @@ fn draw_execution_result(frame: &mut Frame, app: &App) {
         .split(area);
 
     // Get the output
-    let output = match &app.last_output {
-        Some(o) => o,
-        None => {
-            // Should not happen, but handle gracefully
-            let msg = Paragraph::new("No output available").alignment(Alignment::Center);
-            frame.render_widget(msg, area);
-            return;
-        }
+    let output = if let Some(o) = &app.last_output {
+        o
+    } else {
+        // Should not happen, but handle gracefully
+        let msg = Paragraph::new("No output available").alignment(Alignment::Center);
+        frame.render_widget(msg, area);
+        return;
     };
 
     // Header with command info and status
@@ -1405,8 +1413,8 @@ fn draw_analytics_screen(frame: &mut Frame, app: &App) {
             };
 
             let bar_max_width = chart_width.saturating_sub(30);
-            let bar_len =
-                (stat.execution_count as f64 / max_count as f64 * bar_max_width as f64) as usize;
+            let bar_len = (f64::from(stat.execution_count) / f64::from(max_count)
+                * bar_max_width as f64) as usize;
 
             // Alternate colors for visual clarity
             let bar_color = if i % 2 == 0 { theme.primary } else { theme.accent };

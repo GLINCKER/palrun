@@ -407,63 +407,53 @@ impl ParallelExecutor {
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
 
-        match cmd.spawn() {
-            Ok(mut child) => {
-                // Read stdout and stderr concurrently
-                let stdout = child.stdout.take();
-                let stderr = child.stderr.take();
-                let tx_stdout = tx.clone();
-                let tx_stderr = tx.clone();
+        if let Ok(mut child) = cmd.spawn() {
+            // Read stdout and stderr concurrently
+            let stdout = child.stdout.take();
+            let stderr = child.stderr.take();
+            let tx_stdout = tx.clone();
+            let tx_stderr = tx.clone();
 
-                let stdout_handle = thread::spawn(move || {
-                    if let Some(stdout) = stdout {
-                        let reader = BufReader::new(stdout);
-                        for line in reader.lines().map_while(Result::ok) {
-                            let output =
-                                ProcessOutput { line, is_stderr: false, timestamp: Instant::now() };
-                            let _ = tx_stdout.send(ProcessEvent::Output(id, output));
-                        }
-                    }
-                });
-
-                let stderr_handle = thread::spawn(move || {
-                    if let Some(stderr) = stderr {
-                        let reader = BufReader::new(stderr);
-                        for line in reader.lines().map_while(Result::ok) {
-                            let output =
-                                ProcessOutput { line, is_stderr: true, timestamp: Instant::now() };
-                            let _ = tx_stderr.send(ProcessEvent::Output(id, output));
-                        }
-                    }
-                });
-
-                let _ = stdout_handle.join();
-                let _ = stderr_handle.join();
-
-                match child.wait() {
-                    Ok(status) => {
-                        let duration = start.elapsed();
-                        let process_status = if status.success() {
-                            ProcessStatus::Success
-                        } else {
-                            ProcessStatus::Failed(status.code())
-                        };
-                        let _ = tx.send(ProcessEvent::Completed(id, process_status, duration));
-                    }
-                    Err(_) => {
-                        let duration = start.elapsed();
-                        let _ = tx.send(ProcessEvent::Completed(
-                            id,
-                            ProcessStatus::Failed(None),
-                            duration,
-                        ));
+            let stdout_handle = thread::spawn(move || {
+                if let Some(stdout) = stdout {
+                    let reader = BufReader::new(stdout);
+                    for line in reader.lines().map_while(Result::ok) {
+                        let output =
+                            ProcessOutput { line, is_stderr: false, timestamp: Instant::now() };
+                        let _ = tx_stdout.send(ProcessEvent::Output(id, output));
                     }
                 }
-            }
-            Err(_) => {
+            });
+
+            let stderr_handle = thread::spawn(move || {
+                if let Some(stderr) = stderr {
+                    let reader = BufReader::new(stderr);
+                    for line in reader.lines().map_while(Result::ok) {
+                        let output =
+                            ProcessOutput { line, is_stderr: true, timestamp: Instant::now() };
+                        let _ = tx_stderr.send(ProcessEvent::Output(id, output));
+                    }
+                }
+            });
+
+            let _ = stdout_handle.join();
+            let _ = stderr_handle.join();
+
+            if let Ok(status) = child.wait() {
+                let duration = start.elapsed();
+                let process_status = if status.success() {
+                    ProcessStatus::Success
+                } else {
+                    ProcessStatus::Failed(status.code())
+                };
+                let _ = tx.send(ProcessEvent::Completed(id, process_status, duration));
+            } else {
                 let duration = start.elapsed();
                 let _ = tx.send(ProcessEvent::Completed(id, ProcessStatus::Failed(None), duration));
             }
+        } else {
+            let duration = start.elapsed();
+            let _ = tx.send(ProcessEvent::Completed(id, ProcessStatus::Failed(None), duration));
         }
     }
 }

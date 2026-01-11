@@ -64,13 +64,13 @@ impl NetworkChecker {
     #[cfg(feature = "ai")]
     pub fn check(&self) -> NetworkStatus {
         // Try a simple HTTP request to a reliable endpoint
-        let client = match reqwest::blocking::Client::builder().timeout(self.timeout).build() {
-            Ok(c) => c,
-            Err(_) => {
+        let client =
+            if let Ok(c) = reqwest::blocking::Client::builder().timeout(self.timeout).build() {
+                c
+            } else {
                 self.is_online.store(false, Ordering::SeqCst);
                 return NetworkStatus::Offline;
-            }
-        };
+            };
 
         // Try multiple endpoints for reliability
         let endpoints = ["https://httpbin.org/status/200", "https://www.google.com/generate_204"];
@@ -91,12 +91,11 @@ impl NetworkChecker {
     /// Check network connectivity (async version).
     #[cfg(feature = "ai")]
     pub async fn check_async(&self) -> NetworkStatus {
-        let client = match reqwest::Client::builder().timeout(self.timeout).build() {
-            Ok(c) => c,
-            Err(_) => {
-                self.is_online.store(false, Ordering::SeqCst);
-                return NetworkStatus::Offline;
-            }
+        let client = if let Ok(c) = reqwest::Client::builder().timeout(self.timeout).build() {
+            c
+        } else {
+            self.is_online.store(false, Ordering::SeqCst);
+            return NetworkStatus::Offline;
         };
 
         let endpoints = ["https://httpbin.org/status/200", "https://www.google.com/generate_204"];

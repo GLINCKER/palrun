@@ -63,7 +63,9 @@ impl fmt::Display for DegradationReason {
             DegradationReason::ServiceOffline(s) => write!(f, "{} is offline", s),
             DegradationReason::MissingCredentials => write!(f, "missing API key or credentials"),
             DegradationReason::NetworkUnavailable => write!(f, "no network connection"),
-            DegradationReason::CircuitOpen => write!(f, "temporarily unavailable (too many failures)"),
+            DegradationReason::CircuitOpen => {
+                write!(f, "temporarily unavailable (too many failures)")
+            }
             DegradationReason::Other(s) => write!(f, "{}", s),
         }
     }
@@ -98,12 +100,13 @@ impl DegradedFeature {
             Feature::Ai => {
                 let fallback = Some("Manual command entry".to_string());
                 let hint = match reason {
-                    DegradationReason::MissingCredentials => {
-                        Some("Set ANTHROPIC_API_KEY or OPENAI_API_KEY, or run Ollama locally".to_string())
-                    }
-                    DegradationReason::NetworkUnavailable => {
-                        Some("Check your internet connection, or use Ollama for local AI".to_string())
-                    }
+                    DegradationReason::MissingCredentials => Some(
+                        "Set ANTHROPIC_API_KEY or OPENAI_API_KEY, or run Ollama locally"
+                            .to_string(),
+                    ),
+                    DegradationReason::NetworkUnavailable => Some(
+                        "Check your internet connection, or use Ollama for local AI".to_string(),
+                    ),
                     DegradationReason::ServiceOffline(s) => {
                         Some(format!("Wait for {} to come back online", s))
                     }
@@ -138,7 +141,8 @@ impl DegradedFeature {
             }
             Feature::Scanning => {
                 let fallback = Some("Manual command entry or cached commands".to_string());
-                let hint = Some("Check file permissions and try 'palrun scan --verbose'".to_string());
+                let hint =
+                    Some("Check file permissions and try 'palrun scan --verbose'".to_string());
                 (fallback, hint)
             }
         }
@@ -212,10 +216,7 @@ impl DegradationManager {
 
     /// Get recovery hints for all degraded features.
     pub fn recovery_hints(&self) -> Vec<String> {
-        self.details
-            .iter()
-            .filter_map(|d| d.recovery_hint.clone())
-            .collect()
+        self.details.iter().filter_map(|d| d.recovery_hint.clone()).collect()
     }
 
     /// Clear all degradations.
@@ -310,11 +311,7 @@ mod tests {
         assert_eq!(result.value.unwrap(), 42);
 
         // Primary fails, fallback succeeds
-        let result = with_fallback(
-            || Err::<i32, _>("primary failed"),
-            || Ok(99),
-            "used default",
-        );
+        let result = with_fallback(|| Err::<i32, _>("primary failed"), || Ok(99), "used default");
         assert!(result.used_fallback);
         assert_eq!(result.value.unwrap(), 99);
     }

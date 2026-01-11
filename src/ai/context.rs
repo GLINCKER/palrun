@@ -151,6 +151,6 @@ mod tests {
 
         let summary = context.summarize();
         assert!(summary.contains("test"));
-        assert!(summary.contains("2"));
+        assert!(summary.contains('2'));
     }
 }

@@ -95,7 +95,7 @@ impl RetryConfig {
 
         let final_delay = if self.jitter {
             // Add up to 25% jitter
-            let jitter_factor = 1.0 + (rand_jitter() * 0.25);
+            let jitter_factor = rand_jitter().mul_add(0.25, 1.0);
             capped_delay * jitter_factor
         } else {
             capped_delay
@@ -112,7 +112,7 @@ fn rand_jitter() -> f64 {
         .duration_since(SystemTime::UNIX_EPOCH)
         .map(|d| d.subsec_nanos())
         .unwrap_or(0);
-    (nanos % 1000) as f64 / 1000.0
+    f64::from(nanos % 1000) / 1000.0
 }
 
 /// Result of a retry operation.

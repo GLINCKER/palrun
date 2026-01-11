@@ -153,7 +153,7 @@ impl CommandChain {
                 // Handle quoted strings to avoid parsing operators inside them
                 '"' => {
                     current_cmd.push(c);
-                    while let Some(qc) = chars.next() {
+                    for qc in chars.by_ref() {
                         current_cmd.push(qc);
                         if qc == '"' {
                             break;
@@ -162,7 +162,7 @@ impl CommandChain {
                 }
                 '\'' => {
                     current_cmd.push(c);
-                    while let Some(qc) = chars.next() {
+                    for qc in chars.by_ref() {
                         current_cmd.push(qc);
                         if qc == '\'' {
                             break;
@@ -233,22 +233,19 @@ impl ChainResult {
                 output.push('\n');
             }
             output.push_str(&format!("=== {} ===\n", step.command));
-            match &step.status {
-                ChainStepStatus::Skipped => {
-                    output.push_str("(skipped)\n");
-                }
-                _ => {
-                    if !step.stdout.is_empty() {
-                        output.push_str(&step.stdout);
-                        if !step.stdout.ends_with('\n') {
-                            output.push('\n');
-                        }
+            if step.status == ChainStepStatus::Skipped {
+                output.push_str("(skipped)\n");
+            } else {
+                if !step.stdout.is_empty() {
+                    output.push_str(&step.stdout);
+                    if !step.stdout.ends_with('\n') {
+                        output.push('\n');
                     }
-                    if !step.stderr.is_empty() {
-                        output.push_str(&step.stderr);
-                        if !step.stderr.ends_with('\n') {
-                            output.push('\n');
-                        }
+                }
+                if !step.stderr.is_empty() {
+                    output.push_str(&step.stderr);
+                    if !step.stderr.ends_with('\n') {
+                        output.push('\n');
                     }
                 }
             }

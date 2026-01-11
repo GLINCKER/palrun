@@ -18,7 +18,7 @@ use palrun::scanner::{CargoScanner, NpmScanner, Scanner};
 // ============================================================================
 
 mod fixtures {
-    use super::*;
+    use super::{Command, CommandSource, PathBuf};
 
     /// Generate a realistic package.json content with scripts.
     pub fn generate_package_json(num_scripts: usize) -> String {
@@ -219,7 +219,7 @@ fn bench_npm_scanner(c: &mut Criterion) {
     // Create temp directories with package.json files
     let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 
-    for num_scripts in [10, 50, 100, 200].iter() {
+    for num_scripts in &[10, 50, 100, 200] {
         let project_dir = temp_dir.path().join(format!("project_{}", num_scripts));
         std::fs::create_dir_all(&project_dir).expect("Failed to create project dir");
 
@@ -257,7 +257,7 @@ fn bench_cargo_scanner(c: &mut Criterion) {
         (30, 15), // Very large project
     ];
 
-    for (num_features, num_bins) in configs.iter() {
+    for (num_features, num_bins) in &configs {
         let project_dir = temp_dir.path().join(format!("crate_{}_{}", num_features, num_bins));
         std::fs::create_dir_all(&project_dir).expect("Failed to create project dir");
 
@@ -290,7 +290,7 @@ fn bench_fuzzy_search(c: &mut Criterion) {
     let mut group = c.benchmark_group("fuzzy_search");
 
     // Test with different command counts
-    for cmd_count in [100, 500, 1000, 2000, 5000].iter() {
+    for cmd_count in &[100, 500, 1000, 2000, 5000] {
         let commands = fixtures::generate_commands(*cmd_count);
         let mut registry = CommandRegistry::new();
         for cmd in commands {
@@ -506,7 +506,7 @@ fn bench_executor_startup(c: &mut Criterion) {
 fn bench_package_json_parsing(c: &mut Criterion) {
     let mut group = c.benchmark_group("parsing/package_json");
 
-    for num_scripts in [10, 50, 100, 200].iter() {
+    for num_scripts in &[10, 50, 100, 200] {
         let json = fixtures::generate_package_json(*num_scripts);
 
         group.throughput(Throughput::Bytes(json.len() as u64));
@@ -526,7 +526,7 @@ fn bench_cargo_toml_parsing(c: &mut Criterion) {
 
     let configs = [(5, 2), (10, 5), (20, 10), (30, 15)];
 
-    for (num_features, num_bins) in configs.iter() {
+    for (num_features, num_bins) in &configs {
         let toml_content = fixtures::generate_cargo_toml(*num_features, *num_bins);
         let label = format!("{}f_{}b", num_features, num_bins);
 

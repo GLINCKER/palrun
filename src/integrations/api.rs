@@ -406,9 +406,8 @@ impl ApiServer {
     }
 }
 
-/// API route handler types (for documentation).
 pub mod routes {
-    //! API routes documentation.
+    //! API route handler types (for documentation).
     //!
     //! Available endpoints:
     //!

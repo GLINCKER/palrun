@@ -558,7 +558,7 @@ mod tests {
             author: None,
             plugin_type: PluginType::Scanner,
             api_version: "0.1.0".to_string(),
-            download_url: "".to_string(),
+            download_url: String::new(),
             homepage: None,
             repository: None,
             license: None,

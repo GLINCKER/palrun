@@ -136,7 +136,7 @@ impl Analytics {
         let total_duration_ms: u64 = entries.iter().map(|e| e.total_duration_ms).sum();
 
         let overall_success_rate = if total_executions > 0 {
-            (total_successes as f64 / total_executions as f64) * 100.0
+            (f64::from(total_successes) / f64::from(total_executions)) * 100.0
         } else {
             0.0
         };
@@ -202,7 +202,8 @@ impl Analytics {
         // Insight: Most used command
         if let Some(top) = stats.first() {
             if top.execution_count > 10 {
-                let percentage = (top.execution_count as f64 / total_executions as f64) * 100.0;
+                let percentage =
+                    (f64::from(top.execution_count) / f64::from(total_executions)) * 100.0;
                 insights.push(Insight {
                     category: InsightCategory::HighUsage,
                     message: format!(
@@ -229,7 +230,8 @@ impl Analytics {
                     "'{}' has a {:.0}% failure rate ({} failures)",
                     worst.name,
                     100.0 - worst.success_rate,
-                    (worst.execution_count as f64 * (100.0 - worst.success_rate) / 100.0) as u32
+                    (f64::from(worst.execution_count) * (100.0 - worst.success_rate) / 100.0)
+                        as u32
                 ),
                 suggestion: Some("Check the command output for common errors".to_string()),
             });
@@ -300,8 +302,8 @@ impl Analytics {
                 };
 
                 let bar_max_width = max_width.saturating_sub(max_name_len + 10);
-                let bar_len =
-                    (s.execution_count as f64 / max_count as f64 * bar_max_width as f64) as usize;
+                let bar_len = (f64::from(s.execution_count) / f64::from(max_count)
+                    * bar_max_width as f64) as usize;
                 let bar = "█".repeat(bar_len.max(1));
 
                 format!("{} {} ({})", name, bar, s.execution_count)
