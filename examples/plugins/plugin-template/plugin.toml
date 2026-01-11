@@ -1,0 +1,79 @@
+# Plugin Manifest for Palrun
+#
+# This file describes your plugin and its permissions.
+# It must be present alongside your .wasm file when installing.
+
+[plugin]
+# Unique plugin name (lowercase, hyphens allowed)
+name = "my-scanner"
+
+# Version following semver (major.minor.patch)
+version = "0.1.0"
+
+# Your name or organization
+author = "Your Name"
+
+# Brief description (shown in plugin list)
+description = "Scans for custom project commands"
+
+# Plugin type: scanner, ai-provider, integration, or ui
+type = "scanner"
+
+# Minimum Palrun API version required
+api_version = "0.1.0"
+
+# License (MIT, Apache-2.0, etc.)
+license = "MIT"
+
+# Optional: homepage URL
+# homepage = "https://example.com/my-scanner"
+
+# Optional: source repository
+# repository = "https://github.com/your-username/my-scanner"
+
+# Keywords for search (up to 5)
+keywords = ["custom", "example"]
+
+# ============================================================
+# Permissions
+# ============================================================
+# Plugins run in a sandbox and must request permissions.
+# Only request what you need for security.
+
+[permissions]
+# Can make network requests (for API integrations)
+network = false
+
+# Can execute external commands
+execute = false
+
+# Can read environment variables
+environment = false
+
+[permissions.filesystem]
+# Can read files (required for scanners)
+read = true
+
+# Can write files
+write = false
+
+# File patterns the plugin can access (glob patterns)
+# Only files matching these patterns will be provided
+paths = [
+    "Myfile",
+    "*.myext",
+    "config/*.toml",
+]
+
+# ============================================================
+# Plugin Configuration
+# ============================================================
+# Define configurable options for your plugin.
+# Users can override these in their palrun.toml
+
+[config]
+# Example: maximum depth to scan subdirectories
+# scan_depth = 3
+
+# Example: patterns to exclude
+# exclude_patterns = ["vendor", "node_modules"]

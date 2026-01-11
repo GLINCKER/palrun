@@ -248,12 +248,7 @@ impl CaptureManager {
             .map(|entries| {
                 entries
                     .filter_map(Result::ok)
-                    .filter(|e| {
-                        e.path()
-                            .extension()
-                            .map(|ext| ext == "meta")
-                            .unwrap_or(false)
-                    })
+                    .filter(|e| e.path().extension().map(|ext| ext == "meta").unwrap_or(false))
                     .filter_map(|e| self.read_metadata(&e.path()))
                     .collect()
             })
@@ -267,24 +262,19 @@ impl CaptureManager {
     /// Get captured output by ID.
     pub fn get(&self, id: CaptureId) -> Option<CapturedOutput> {
         // Find the metadata file for this ID
-        let meta_file = fs::read_dir(&self.capture_dir)
-            .ok()?
-            .filter_map(Result::ok)
-            .find(|e| {
-                e.file_name()
-                    .to_str()
-                    .map(|name| name.starts_with(&format!("{}-", id)) && name.ends_with(".meta"))
-                    .unwrap_or(false)
-            })?;
+        let meta_file = fs::read_dir(&self.capture_dir).ok()?.filter_map(Result::ok).find(|e| {
+            e.file_name()
+                .to_str()
+                .map(|name| name.starts_with(&format!("{}-", id)) && name.ends_with(".meta"))
+                .unwrap_or(false)
+        })?;
 
         let metadata = self.read_metadata(&meta_file.path())?;
 
         // Get the timestamp from the filename
         let filename = meta_file.file_name();
         let filename_str = filename.to_str()?;
-        let timestamp = filename_str
-            .strip_prefix(&format!("{}-", id))?
-            .strip_suffix(".meta")?;
+        let timestamp = filename_str.strip_prefix(&format!("{}-", id))?.strip_suffix(".meta")?;
 
         // Read stdout
         let stdout_path = self.capture_dir.join(format!("{}-{}.stdout", id, timestamp));
@@ -294,11 +284,7 @@ impl CaptureManager {
         let stderr_path = self.capture_dir.join(format!("{}-{}.stderr", id, timestamp));
         let stderr = fs::read_to_string(&stderr_path).unwrap_or_default();
 
-        Some(CapturedOutput {
-            metadata,
-            stdout,
-            stderr,
-        })
+        Some(CapturedOutput { metadata, stdout, stderr })
     }
 
     /// Get the most recent capture.
@@ -416,7 +402,7 @@ pub fn strip_ansi_codes(s: &str) -> String {
             // Skip escape sequence
             if chars.peek() == Some(&'[') {
                 chars.next(); // consume '['
-                // Skip until we hit a letter (which terminates the sequence)
+                              // Skip until we hit a letter (which terminates the sequence)
                 while let Some(&next) = chars.peek() {
                     chars.next();
                     if next.is_ascii_alphabetic() {
@@ -517,14 +503,7 @@ mod tests {
         let mut manager = CaptureManager::with_dir(temp_dir.path().to_path_buf()).unwrap();
 
         let id = manager
-            .capture(
-                "test_cmd",
-                "echo hello",
-                "hello\n",
-                "",
-                Duration::from_millis(100),
-                Some(0),
-            )
+            .capture("test_cmd", "echo hello", "hello\n", "", Duration::from_millis(100), Some(0))
             .unwrap();
 
         let captured = manager.get(id).unwrap();

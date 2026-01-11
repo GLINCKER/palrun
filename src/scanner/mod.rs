@@ -3,22 +3,26 @@
 //! This module contains scanners that detect and parse various project
 //! configuration files to discover available commands.
 
+mod builtin;
 mod cargo;
 mod docker;
 mod git;
 mod go_lang;
 mod makefile;
+mod mcp;
 mod npm;
 mod nx;
 mod python;
 mod taskfile;
 mod turbo;
 
+pub use builtin::BuiltinScanner;
 pub use cargo::CargoScanner;
 pub use docker::DockerScanner;
 pub use git::GitScanner;
 pub use go_lang::GoScanner;
 pub use makefile::MakefileScanner;
+pub use mcp::MCPScanner;
 pub use npm::NpmScanner;
 pub use nx::NxScanner;
 pub use python::PythonScanner;
@@ -51,6 +55,7 @@ impl ProjectScanner {
     /// Create a new project scanner for the given directory.
     pub fn new(root: &Path) -> Self {
         let scanners: Vec<Box<dyn Scanner>> = vec![
+            Box::new(BuiltinScanner),
             Box::new(NpmScanner),
             Box::new(MakefileScanner),
             Box::new(NxScanner),
@@ -175,7 +180,7 @@ mod tests {
     #[test]
     fn test_project_scanner_creation() {
         let scanner = ProjectScanner::new(Path::new("."));
-        assert_eq!(scanner.scanner_count(), 10);
+        assert_eq!(scanner.scanner_count(), 11);
     }
 
     #[test]

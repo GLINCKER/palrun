@@ -1,0 +1,41 @@
+# Palrun Configuration for Next.js Projects
+
+[general]
+confirm_dangerous = true
+max_history = 1000
+
+[ui]
+theme = "default"
+show_preview = true
+show_icons = true
+max_display = 50
+mouse = true
+
+[scanner]
+enabled = [
+    "npm",      # package.json scripts
+    "docker",   # Docker Compose (if used)
+    "make",     # Makefiles (if used)
+]
+
+ignore_dirs = [
+    "node_modules",
+    ".git",
+    ".next",
+    "out",
+    "dist",
+    "build",
+    "coverage",
+    ".cache",
+]
+
+max_depth = 5
+recursive = false  # Usually not needed for single Next.js apps
+
+[keys]
+quit = "q"
+select = "enter"
+up = "up"
+down = "down"
+clear = "ctrl+u"
+

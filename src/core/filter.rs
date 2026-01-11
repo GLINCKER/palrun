@@ -158,7 +158,9 @@ pub fn filter_by_workspace<'a>(
 ) -> Vec<&'a Command> {
     let ws_lower = workspace.to_lowercase();
     commands
-        .filter(|c| c.workspace.as_ref().map(|w| w.to_lowercase().contains(&ws_lower)).unwrap_or(false))
+        .filter(|c| {
+            c.workspace.as_ref().map(|w| w.to_lowercase().contains(&ws_lower)).unwrap_or(false)
+        })
         .collect()
 }
 
@@ -181,8 +183,7 @@ pub fn get_tags(commands: &[Command]) -> Vec<String> {
 
 /// Get unique workspaces from a list of commands.
 pub fn get_workspaces(commands: &[Command]) -> Vec<String> {
-    let mut workspaces: Vec<String> =
-        commands.iter().filter_map(|c| c.workspace.clone()).collect();
+    let mut workspaces: Vec<String> = commands.iter().filter_map(|c| c.workspace.clone()).collect();
     workspaces.sort();
     workspaces.dedup();
     workspaces
@@ -190,8 +191,8 @@ pub fn get_workspaces(commands: &[Command]) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::CommandSource;
+    use super::*;
     use std::path::PathBuf;
 
     fn create_test_commands() -> Vec<Command> {
@@ -268,8 +269,7 @@ mod tests {
         let commands = create_test_commands();
         let query = ParsedQuery::parse("#test");
 
-        let matching: Vec<_> = commands.iter().filter(|c| query.matches(c)).collect();
-        assert_eq!(matching.len(), 2); // npm test and cargo test
+        assert_eq!(commands.iter().filter(|c| query.matches(c)).count(), 2); // npm test and cargo test
     }
 
     #[test]

@@ -8,8 +8,8 @@ use std::path::PathBuf;
 
 use crate::core::{
     send_notification, BackgroundEvent, BackgroundManager, CaptureManager, ChainExecutor,
-    ChainStepStatus, Command, CommandChain, CommandContext, CommandRegistry, Config,
-    ContextFilter, HistoryManager, ParsedQuery,
+    ChainStepStatus, Command, CommandChain, CommandContext, CommandRegistry, Config, ContextFilter,
+    HistoryManager, ParsedQuery,
 };
 use crate::tui::Theme;
 
@@ -112,6 +112,50 @@ pub struct App {
 
     /// Directory listing for shell command preview
     pub dir_listing: Option<Vec<DirEntry>>,
+
+    /// Selected index in directory listing
+    pub dir_selected: usize,
+
+    /// Ghost text autocomplete suggestion
+    pub ghost_text: Option<String>,
+
+    /// Slash commands shown when input starts with /
+    pub slash_commands: Option<Vec<SlashCommand>>,
+
+    /// Selected slash command index
+    pub slash_selected: usize,
+
+    /// Whether network is offline (for AI status)
+    pub is_offline: bool,
+
+    /// AI provider status message
+    pub ai_status: Option<String>,
+}
+
+/// A slash command entry
+#[derive(Debug, Clone)]
+pub struct SlashCommand {
+    pub name: String,
+    pub description: String,
+}
+
+impl SlashCommand {
+    fn new(name: &str, description: &str) -> Self {
+        Self { name: name.to_string(), description: description.to_string() }
+    }
+}
+
+/// Get available slash commands
+fn get_slash_commands() -> Vec<SlashCommand> {
+    vec![
+        SlashCommand::new("/help", "Show help screen"),
+        SlashCommand::new("/history", "View command history"),
+        SlashCommand::new("/analytics", "View usage analytics"),
+        SlashCommand::new("/favorites", "Show favorite commands"),
+        SlashCommand::new("/settings", "Open settings"),
+        SlashCommand::new("/theme", "Change color theme"),
+        SlashCommand::new("/quit", "Exit palrun"),
+    ]
 }
 
 /// A directory entry for preview
@@ -232,6 +276,12 @@ impl App {
             context_menu_selected: 0,
             tip_index: 0,
             dir_listing: None,
+            dir_selected: 0,
+            ghost_text: None,
+            slash_commands: None,
+            slash_selected: 0,
+            is_offline: false,
+            ai_status: None,
         })
     }
 
@@ -349,6 +399,12 @@ impl App {
             context_menu_selected: 0,
             tip_index: 0,
             dir_listing: None,
+            dir_selected: 0,
+            ghost_text: None,
+            slash_commands: None,
+            slash_selected: 0,
+            is_offline: false,
+            ai_status: None,
         }
     }
 
@@ -479,9 +535,29 @@ impl App {
         self.update_dir_listing();
     }
 
-    /// Update directory listing for cd/ls preview.
+    /// Update directory listing and slash commands based on input.
     fn update_dir_listing(&mut self) {
         let input = self.input.trim();
+
+        // Check for slash commands first
+        if input.starts_with('/') {
+            self.dir_listing = None;
+            let all_commands = get_slash_commands();
+            let filtered: Vec<SlashCommand> = if input == "/" {
+                all_commands
+            } else {
+                all_commands
+                    .into_iter()
+                    .filter(|c| c.name.to_lowercase().starts_with(&input.to_lowercase()))
+                    .collect()
+            };
+            self.slash_commands = if filtered.is_empty() { None } else { Some(filtered) };
+            self.slash_selected = 0;
+            return;
+        }
+
+        // Clear slash commands if not typing /
+        self.slash_commands = None;
 
         // Check if input looks like a shell directory command
         if input.starts_with("cd ") || input == "cd" || input.starts_with("ls") {
@@ -523,7 +599,7 @@ impl App {
     }
 
     /// List directory entries.
-    fn list_directory(&self, path: &PathBuf) -> Option<Vec<DirEntry>> {
+    fn list_directory(&mut self, path: &PathBuf) -> Option<Vec<DirEntry>> {
         let dir = if path.is_dir() {
             path.clone()
         } else {
@@ -543,25 +619,234 @@ impl App {
                     .collect();
 
                 // Sort: directories first, then alphabetically
-                items.sort_by(|a, b| {
-                    match (a.is_dir, b.is_dir) {
-                        (true, false) => std::cmp::Ordering::Less,
-                        (false, true) => std::cmp::Ordering::Greater,
-                        _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-                    }
+                items.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
                 });
 
                 // Filter by partial input if there's a path fragment
-                let last_segment = path.file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("");
+                let last_segment = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
                 if !last_segment.is_empty() && !path.is_dir() {
-                    items.retain(|e| e.name.to_lowercase().starts_with(&last_segment.to_lowercase()));
+                    items.retain(|e| {
+                        e.name.to_lowercase().starts_with(&last_segment.to_lowercase())
+                    });
                 }
+
+                // Update ghost text with first match
+                self.ghost_text = items.first().map(|e| e.name.clone());
 
                 Some(items)
             }
             Err(_) => None,
+        }
+    }
+
+    /// Check if we're in directory browsing mode.
+    pub fn is_dir_browsing(&self) -> bool {
+        self.dir_listing.as_ref().map(|d| !d.is_empty()).unwrap_or(false)
+            && self.filtered_commands.is_empty()
+    }
+
+    /// Check if we're in slash command browsing mode.
+    pub fn is_slash_browsing(&self) -> bool {
+        self.slash_commands.as_ref().map(|c| !c.is_empty()).unwrap_or(false)
+    }
+
+    /// Navigate to next slash command.
+    pub fn select_slash_next(&mut self) {
+        if let Some(ref commands) = self.slash_commands {
+            if !commands.is_empty() {
+                self.slash_selected = (self.slash_selected + 1).min(commands.len() - 1);
+            }
+        }
+    }
+
+    /// Navigate to previous slash command.
+    pub fn select_slash_previous(&mut self) {
+        if self.slash_commands.is_some() {
+            self.slash_selected = self.slash_selected.saturating_sub(1);
+        }
+    }
+
+    /// Try to execute a slash command. Returns true if handled.
+    pub fn try_slash_command(&mut self) -> bool {
+        let input = self.input.trim().to_string();
+
+        // Check if we have a slash command selected
+        if let Some(ref commands) = self.slash_commands {
+            if let Some(cmd) = commands.get(self.slash_selected) {
+                let cmd_name = cmd.name.clone();
+                self.execute_slash_command(&cmd_name);
+                return true;
+            }
+        }
+
+        // Check for exact slash command match
+        if input.starts_with('/') {
+            let matched = match input.as_str() {
+                "/help" | "/h" | "/?" => {
+                    self.show_help();
+                    true
+                }
+                "/history" => {
+                    self.show_history();
+                    true
+                }
+                "/analytics" | "/stats" => {
+                    self.show_analytics();
+                    true
+                }
+                "/quit" | "/q" | "/exit" => {
+                    self.quit();
+                    true
+                }
+                "/favorites" | "/fav" => {
+                    // TODO: Show favorites filter
+                    self.set_status("Favorites: coming soon!");
+                    true
+                }
+                "/settings" => {
+                    // TODO: Show settings
+                    self.set_status("Settings: coming soon!");
+                    true
+                }
+                "/theme" => {
+                    // TODO: Theme picker
+                    self.set_status("Theme picker: coming soon!");
+                    true
+                }
+                _ => false,
+            };
+
+            if matched {
+                self.input.clear();
+                self.cursor_position = 0;
+                self.slash_commands = None;
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Execute a specific slash command.
+    fn execute_slash_command(&mut self, cmd: &str) {
+        match cmd {
+            "/help" => self.show_help(),
+            "/history" => self.show_history(),
+            "/analytics" => self.show_analytics(),
+            "/quit" => self.quit(),
+            "/favorites" => self.set_status("Favorites: coming soon!"),
+            "/settings" => self.set_status("Settings: coming soon!"),
+            "/theme" => self.set_status("Theme picker: coming soon!"),
+            _ => {}
+        }
+        self.input.clear();
+        self.cursor_position = 0;
+        self.slash_commands = None;
+    }
+
+    /// Navigate to next directory entry.
+    pub fn select_dir_next(&mut self) {
+        if let Some(ref entries) = self.dir_listing {
+            if !entries.is_empty() {
+                self.dir_selected = (self.dir_selected + 1).min(entries.len() - 1);
+                self.ghost_text = entries.get(self.dir_selected).map(|e| e.name.clone());
+            }
+        }
+    }
+
+    /// Navigate to previous directory entry.
+    pub fn select_dir_previous(&mut self) {
+        if self.dir_listing.is_some() {
+            self.dir_selected = self.dir_selected.saturating_sub(1);
+            if let Some(ref entries) = self.dir_listing {
+                self.ghost_text = entries.get(self.dir_selected).map(|e| e.name.clone());
+            }
+        }
+    }
+
+    /// Complete input with selected directory (Tab completion).
+    pub fn complete_dir_selection(&mut self) {
+        if let Some(ref entries) = self.dir_listing {
+            if let Some(entry) = entries.get(self.dir_selected) {
+                let input = self.input.trim();
+
+                // Extract the base command (cd or ls) and existing path
+                let (cmd, existing_path) = if input.starts_with("cd ") {
+                    ("cd ", input.strip_prefix("cd ").unwrap_or("").trim())
+                } else if input.starts_with("ls ") {
+                    ("ls ", input.strip_prefix("ls ").unwrap_or("").trim())
+                } else if input == "cd" {
+                    ("cd ", "")
+                } else if input == "ls" {
+                    ("ls ", "")
+                } else {
+                    return;
+                };
+
+                // Build new path
+                let base_path = if existing_path.is_empty() {
+                    String::new()
+                } else {
+                    // Get directory part of existing path
+                    let path = self.resolve_path(existing_path);
+                    if path.is_dir() {
+                        format!("{}/", existing_path.trim_end_matches('/'))
+                    } else if let Some(parent) = std::path::Path::new(existing_path).parent() {
+                        let parent_str = parent.to_string_lossy();
+                        if parent_str.is_empty() {
+                            String::new()
+                        } else {
+                            format!("{}/", parent_str)
+                        }
+                    } else {
+                        String::new()
+                    }
+                };
+
+                let new_input = format!("{}{}{}", cmd, base_path, entry.name);
+                self.input = if entry.is_dir { format!("{}/", new_input) } else { new_input };
+                self.cursor_position = self.input.len();
+                self.dir_selected = 0;
+                self.update_filtered_commands();
+            }
+        }
+    }
+
+    /// Execute with selected directory.
+    pub fn execute_dir_selection(&mut self) {
+        // Clone entry info to avoid borrow issues
+        let entry_info = self
+            .dir_listing
+            .as_ref()
+            .and_then(|entries| entries.get(self.dir_selected))
+            .map(|e| (e.name.clone(), e.is_dir));
+
+        if let Some((_, is_dir)) = entry_info {
+            // Complete first, then execute
+            self.complete_dir_selection();
+
+            // If it's a directory and we're doing cd, execute it
+            if is_dir && self.input.trim().starts_with("cd ") {
+                let input = self.input.trim().to_string();
+                self.handle_cd_command(&input);
+                self.input.clear();
+                self.cursor_position = 0;
+                self.dir_listing = None;
+                self.dir_selected = 0;
+                self.ghost_text = None;
+            } else if self.input.trim().starts_with("ls") {
+                // For ls, execute the command
+                let input = self.input.trim().to_string();
+                self.execute_shell_command(&input);
+                self.input.clear();
+                self.cursor_position = 0;
+                self.dir_listing = None;
+                self.dir_selected = 0;
+                self.ghost_text = None;
+            }
         }
     }
 
@@ -622,9 +907,9 @@ impl App {
     /// Get git status string for display.
     #[cfg(feature = "git")]
     pub fn git_status_display(&self) -> Option<String> {
-        self.git_info.as_ref().map(|info| {
-            format!("{} {}", info.branch_display(), info.status_string())
-        })
+        self.git_info
+            .as_ref()
+            .map(|info| format!("{} {}", info.branch_display(), info.status_string()))
     }
 
     /// Initialize the application (scan for commands, etc.).
@@ -638,7 +923,44 @@ impl App {
         // Update filtered list with all commands initially
         self.update_filtered_commands();
 
+        // Check AI availability
+        self.update_ai_status();
+
         Ok(())
+    }
+
+    /// Update AI status based on available providers.
+    #[cfg(feature = "ai")]
+    fn update_ai_status(&mut self) {
+        // Check for Claude API key
+        if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+            self.ai_status = Some("Claude AI".to_string());
+            return;
+        }
+
+        // Check for OpenAI API key
+        if std::env::var("OPENAI_API_KEY").is_ok() {
+            self.ai_status = Some("OpenAI".to_string());
+            return;
+        }
+
+        // Check for Ollama (local) - this is a simple check, actual availability
+        // requires an async call which we'll do in the TUI loop
+        let ollama_host =
+            std::env::var("OLLAMA_HOST").unwrap_or_else(|_| "http://localhost:11434".to_string());
+        if ollama_host.contains("localhost") || ollama_host.contains("127.0.0.1") {
+            self.ai_status = Some("Ollama (local)".to_string());
+            return;
+        }
+
+        // No AI provider configured
+        self.ai_status = None;
+    }
+
+    /// Fallback when AI feature is disabled.
+    #[cfg(not(feature = "ai"))]
+    fn update_ai_status(&mut self) {
+        self.ai_status = None;
     }
 
     /// Load aliases from config into the registry.
@@ -812,20 +1134,15 @@ impl App {
 
     /// Search captured outputs.
     pub fn search_captures(&self, pattern: &str) -> Vec<crate::core::SearchResult> {
-        self.capture_manager
-            .as_ref()
-            .map(|m| m.search(pattern))
-            .unwrap_or_default()
+        self.capture_manager.as_ref().map(|m| m.search(pattern)).unwrap_or_default()
     }
 
     /// Execute multiple selected commands in parallel.
     pub fn execute_parallel_commands(&mut self) {
         use crate::core::ParallelExecutor;
 
-        let commands: Vec<_> = self.get_selected_commands()
-            .into_iter()
-            .map(|c| c.clone())
-            .collect();
+        let commands: Vec<_> =
+            self.get_selected_commands().into_iter().map(|c| c.clone()).collect();
 
         if commands.is_empty() {
             return;
@@ -846,7 +1163,10 @@ impl App {
 
                 for (i, proc) in parallel_result.processes.iter().enumerate() {
                     // Add header for each command
-                    stdout.push_str(&format!("━━━ {} ━━━\n", names.get(i).unwrap_or(&"Command".to_string())));
+                    stdout.push_str(&format!(
+                        "━━━ {} ━━━\n",
+                        names.get(i).unwrap_or(&"Command".to_string())
+                    ));
 
                     if !proc.stdout.is_empty() {
                         stdout.push_str(&proc.stdout.join("\n"));
@@ -854,7 +1174,10 @@ impl App {
                     }
 
                     if !proc.stderr.is_empty() {
-                        stderr.push_str(&format!("[{}] ", names.get(i).unwrap_or(&"Command".to_string())));
+                        stderr.push_str(&format!(
+                            "[{}] ",
+                            names.get(i).unwrap_or(&"Command".to_string())
+                        ));
                         stderr.push_str(&proc.stderr.join("\n"));
                         stderr.push('\n');
                     }
@@ -963,7 +1286,11 @@ impl App {
     /// Get count of selected commands.
     pub fn selected_count(&self) -> usize {
         if self.selected_commands.is_empty() {
-            if self.get_selected_command().is_some() { 1 } else { 0 }
+            if self.get_selected_command().is_some() {
+                1
+            } else {
+                0
+            }
         } else {
             self.selected_commands.len()
         }
@@ -982,7 +1309,10 @@ impl App {
             if let Some(ref manager) = self.background_manager {
                 match manager.spawn(cmd.clone()) {
                     Ok(id) => {
-                        self.set_status(format!("Started '{}' in background (ID: {})", cmd.name, id));
+                        self.set_status(format!(
+                            "Started '{}' in background (ID: {})",
+                            cmd.name, id
+                        ));
                     }
                     Err(e) => {
                         self.set_status(format!("Failed to start background process: {}", e));
@@ -996,10 +1326,7 @@ impl App {
 
     /// Get the count of running background processes.
     pub fn background_count(&self) -> usize {
-        self.background_manager
-            .as_ref()
-            .map(|m| m.running_count())
-            .unwrap_or(0)
+        self.background_manager.as_ref().map(|m| m.running_count()).unwrap_or(0)
     }
 
     /// Poll for background process events and handle notifications.
@@ -1102,18 +1429,12 @@ impl App {
 
     /// Get recent history entries for display.
     pub fn get_recent_history(&self, limit: usize) -> Vec<&crate::core::HistoryEntry> {
-        self.history_manager
-            .as_ref()
-            .map(|m| m.get_recent(limit))
-            .unwrap_or_default()
+        self.history_manager.as_ref().map(|m| m.get_recent(limit)).unwrap_or_default()
     }
 
     /// Get history entries sorted by frecency.
     pub fn get_frecency_history(&self, limit: usize) -> Vec<&crate::core::HistoryEntry> {
-        self.history_manager
-            .as_ref()
-            .map(|m| m.get_frequent(limit))
-            .unwrap_or_default()
+        self.history_manager.as_ref().map(|m| m.get_frequent(limit)).unwrap_or_default()
     }
 
     // --- Analytics view methods ---
@@ -1134,11 +1455,11 @@ impl App {
     }
 
     /// Get analytics report for display.
-    pub fn get_analytics_report(&self, period: crate::core::TimePeriod) -> crate::core::AnalyticsReport {
-        let entries = self.history_manager
-            .as_ref()
-            .map(|m| m.get_recent(1000))
-            .unwrap_or_default();
+    pub fn get_analytics_report(
+        &self,
+        period: crate::core::TimePeriod,
+    ) -> crate::core::AnalyticsReport {
+        let entries = self.history_manager.as_ref().map(|m| m.get_recent(1000)).unwrap_or_default();
 
         crate::core::Analytics::calculate(&entries, period)
     }
@@ -1164,22 +1485,22 @@ impl App {
 
     /// Check if a command is a favorite.
     pub fn is_favorite(&self, command_id: &str) -> bool {
-        self.history_manager
-            .as_ref()
-            .map(|m| m.is_favorite(command_id))
-            .unwrap_or(false)
+        self.history_manager.as_ref().map(|m| m.is_favorite(command_id)).unwrap_or(false)
     }
 
     /// Get frecency score for a command.
     pub fn get_frecency(&self, command_id: &str) -> f64 {
-        self.history_manager
-            .as_ref()
-            .map(|m| m.get_frecency(command_id))
-            .unwrap_or(0.0)
+        self.history_manager.as_ref().map(|m| m.get_frecency(command_id)).unwrap_or(0.0)
     }
 
     /// Record a command execution in history.
-    pub fn record_execution(&mut self, command_id: &str, command_name: &str, duration_ms: u64, success: bool) {
+    pub fn record_execution(
+        &mut self,
+        command_id: &str,
+        command_name: &str,
+        duration_ms: u64,
+        success: bool,
+    ) {
         if let Some(ref mut manager) = self.history_manager {
             manager.record_execution(command_id, command_name, duration_ms, success);
             let _ = manager.save();
@@ -1193,10 +1514,7 @@ impl App {
 
     /// Get favorites count.
     pub fn favorites_count(&self) -> usize {
-        self.history_manager
-            .as_ref()
-            .map(|m| m.favorites_count())
-            .unwrap_or(0)
+        self.history_manager.as_ref().map(|m| m.favorites_count()).unwrap_or(0)
     }
 
     /// Save history to disk.
@@ -1334,12 +1652,7 @@ impl App {
 
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
 
-        match Command::new(&shell)
-            .arg("-c")
-            .arg(cmd)
-            .current_dir(&self.cwd)
-            .output()
-        {
+        match Command::new(&shell).arg("-c").arg(cmd).current_dir(&self.cwd).output() {
             Ok(output) => {
                 let stdout = String::from_utf8_lossy(&output.stdout).to_string();
                 let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -1454,7 +1767,13 @@ impl Default for App {
                 palette_selected: 0,
                 context_menu_selected: 0,
                 tip_index: 0,
-            dir_listing: None,
+                dir_listing: None,
+                dir_selected: 0,
+                ghost_text: None,
+                slash_commands: None,
+                slash_selected: 0,
+                is_offline: false,
+                ai_status: None,
             }
         })
     }
@@ -1590,12 +1909,9 @@ mod tests {
         let mut app = App::new_test();
 
         // Add commands with workspaces
-        app.registry.add(
-            Command::new("frontend build", "npm run build").with_workspace("frontend"),
-        );
-        app.registry.add(
-            Command::new("backend build", "npm run build").with_workspace("backend"),
-        );
+        app.registry
+            .add(Command::new("frontend build", "npm run build").with_workspace("frontend"));
+        app.registry.add(Command::new("backend build", "npm run build").with_workspace("backend"));
         app.registry.add(Command::new("root build", "npm run build")); // No workspace
 
         // Test workspace filter

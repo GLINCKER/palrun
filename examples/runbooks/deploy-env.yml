@@ -1,0 +1,58 @@
+name: Environment-Specific Deployment
+description: Deploy to different environments with customization
+version: 1.0.0
+
+variables:
+  environment:
+    type: select
+    prompt: "Select deployment environment"
+    options:
+      - development
+      - staging
+      - production
+    required: true
+
+  skip_tests:
+    type: boolean
+    prompt: "Skip tests?"
+    default: false
+
+  version:
+    type: string
+    prompt: "Version tag (optional)"
+    required: false
+
+steps:
+  - name: Install dependencies
+    command: npm install
+    description: Install all dependencies
+
+  - name: Run tests
+    command: npm test
+    description: Run test suite
+    condition: "!skip_tests"
+
+  - name: Build for environment
+    command: npm run build:{{environment}}
+    description: Build for {{environment}}
+    env:
+      NODE_ENV: "{{environment}}"
+
+  - name: Tag version
+    command: git tag v{{version}}
+    description: Tag release version
+    condition: "version != ''"
+    optional: true
+
+  - name: Deploy
+    command: npm run deploy:{{environment}}
+    description: Deploy to {{environment}}
+    confirm: true
+    env:
+      DEPLOY_ENV: "{{environment}}"
+
+  - name: Verify deployment
+    command: npm run verify:{{environment}}
+    description: Verify deployment succeeded
+    optional: true
+

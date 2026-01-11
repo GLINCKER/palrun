@@ -74,4 +74,4 @@ Cargo.lock.bak
 *.generated.rs
 
 # Internal documentation (keep local)
-/docs/
+/local-docs/

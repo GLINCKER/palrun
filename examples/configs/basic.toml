@@ -1,0 +1,66 @@
+# Basic Palrun Configuration
+# This is a minimal configuration with commonly used settings.
+# Copy this to .palrun.toml in your project root or ~/.config/palrun/config.toml
+
+[general]
+# Confirm before executing potentially dangerous commands
+confirm_dangerous = true
+
+# Maximum number of command history entries to keep
+max_history = 1000
+
+[ui]
+# Color theme: "default", "dark", "light", or "custom"
+theme = "default"
+
+# Show command preview panel
+show_preview = true
+
+# Show source icons (npm, cargo, etc.)
+show_icons = true
+
+# Maximum number of commands to display at once
+max_display = 50
+
+# Enable mouse support in the TUI
+mouse = true
+
+[scanner]
+# Enabled scanners (comment out to disable specific scanners)
+enabled = [
+    "npm",
+    "cargo",
+    "make",
+    "docker",
+    "nx",
+    "turbo",
+    "go",
+    "python",
+    "taskfile",
+]
+
+# Directories to ignore when scanning
+ignore_dirs = [
+    "node_modules",
+    ".git",
+    "target",
+    "dist",
+    "build",
+    ".next",
+    "coverage",
+]
+
+# Maximum depth for recursive scanning (monorepos)
+max_depth = 5
+
+# Enable recursive scanning by default
+recursive = true
+
+[keys]
+# Keyboard shortcuts (use standard key names)
+quit = "q"
+select = "enter"
+up = "up"
+down = "down"
+clear = "ctrl+u"
+

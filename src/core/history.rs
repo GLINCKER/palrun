@@ -165,27 +165,20 @@ impl HistoryManager {
         let history_path = Self::default_history_path()?;
         let history = Self::load_history(&history_path).unwrap_or_default();
 
-        Ok(Self {
-            history_path,
-            history,
-            max_entries: 1000,
-        })
+        Ok(Self { history_path, history, max_entries: 1000 })
     }
 
     /// Create a history manager with a custom path (for testing).
     pub fn with_path(path: PathBuf) -> anyhow::Result<Self> {
         let history = Self::load_history(&path).unwrap_or_default();
 
-        Ok(Self {
-            history_path: path,
-            history,
-            max_entries: 1000,
-        })
+        Ok(Self { history_path: path, history, max_entries: 1000 })
     }
 
     /// Get the default history file path.
     fn default_history_path() -> anyhow::Result<PathBuf> {
-        let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
+        let home =
+            dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
         let palrun_dir = home.join(".palrun");
 
         // Ensure directory exists
@@ -228,9 +221,10 @@ impl HistoryManager {
         duration_ms: u64,
         success: bool,
     ) {
-        let entry = self.history.entries
-            .entry(command_id.to_string())
-            .or_insert_with(|| HistoryEntry::new(command_id.to_string(), command_name.to_string()));
+        let entry =
+            self.history.entries.entry(command_id.to_string()).or_insert_with(|| {
+                HistoryEntry::new(command_id.to_string(), command_name.to_string())
+            });
 
         entry.record_execution(duration_ms, success);
 
@@ -248,10 +242,7 @@ impl HistoryManager {
 
     /// Get frecency score for a command.
     pub fn get_frecency(&self, command_id: &str) -> f64 {
-        self.history.entries
-            .get(command_id)
-            .map(|e| e.frecency_score())
-            .unwrap_or(0.0)
+        self.history.entries.get(command_id).map(|e| e.frecency_score()).unwrap_or(0.0)
     }
 
     /// Get sorted command IDs by frecency (highest first).
@@ -270,8 +261,7 @@ impl HistoryManager {
         let mut entries: Vec<_> = self.history.entries.values().collect();
         // Sort by last_executed descending, with command_id as tie-breaker for determinism
         entries.sort_by(|a, b| {
-            b.last_executed.cmp(&a.last_executed)
-                .then_with(|| b.command_id.cmp(&a.command_id))
+            b.last_executed.cmp(&a.last_executed).then_with(|| b.command_id.cmp(&a.command_id))
         });
         entries.into_iter().take(limit).collect()
     }
@@ -344,16 +334,13 @@ impl HistoryManager {
             self.history.favorites.iter().cloned().collect();
 
         // Partition into favorites and non-favorites
-        let (favorites, non_favorites): (Vec<_>, Vec<_>) = entries
-            .into_iter()
-            .partition(|(id, _)| favorites_set.contains(id));
+        let (favorites, non_favorites): (Vec<_>, Vec<_>) =
+            entries.into_iter().partition(|(id, _)| favorites_set.contains(id));
 
         // Keep all favorites plus top non-favorites up to max_entries
         let remaining_slots = self.max_entries.saturating_sub(favorites.len());
-        self.history.entries = favorites
-            .into_iter()
-            .chain(non_favorites.into_iter().take(remaining_slots))
-            .collect();
+        self.history.entries =
+            favorites.into_iter().chain(non_favorites.into_iter().take(remaining_slots)).collect();
     }
 
     /// Clear all history (but keep favorites).
@@ -385,10 +372,7 @@ impl Default for HistoryManager {
 
 /// Get current Unix timestamp in seconds.
 fn current_timestamp() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
 }
 
 #[cfg(test)]

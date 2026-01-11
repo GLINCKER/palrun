@@ -24,10 +24,9 @@ pub fn send_notification(name: &str, status: &BackgroundStatus, duration: Durati
     use notify_rust::Notification;
 
     let (icon, body) = match status {
-        BackgroundStatus::Completed => (
-            "dialog-information",
-            format!("Completed in {:.2?}", duration),
-        ),
+        BackgroundStatus::Completed => {
+            ("dialog-information", format!("Completed in {:.2?}", duration))
+        }
         BackgroundStatus::Failed(code) => (
             "dialog-error",
             match code {
@@ -129,8 +128,7 @@ impl BackgroundProcess {
 
     /// Get the runtime duration.
     pub fn runtime(&self) -> Duration {
-        self.duration
-            .unwrap_or_else(|| self.started_at.elapsed().unwrap_or_default())
+        self.duration.unwrap_or_else(|| self.started_at.elapsed().unwrap_or_default())
     }
 }
 
@@ -200,14 +198,10 @@ impl BackgroundManager {
             id
         };
 
-        let timestamp = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let timestamp =
+            SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs();
 
-        let output_file = self
-            .output_dir
-            .join(format!("{}-{}.log", id, timestamp));
+        let output_file = self.output_dir.join(format!("{}-{}.log", id, timestamp));
 
         let process = BackgroundProcess {
             id,
@@ -237,7 +231,12 @@ impl BackgroundManager {
             let mut child = match ProcessCommand::new(shell)
                 .arg(shell_arg)
                 .arg(&cmd.command)
-                .current_dir(cmd.working_dir.as_ref().map(|p| p.as_path()).unwrap_or_else(|| std::path::Path::new(".")))
+                .current_dir(
+                    cmd.working_dir
+                        .as_ref()
+                        .map(|p| p.as_path())
+                        .unwrap_or_else(|| std::path::Path::new(".")),
+                )
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()
@@ -255,7 +254,8 @@ impl BackgroundManager {
                         p.duration = Some(Duration::ZERO);
                     }
 
-                    let _ = event_tx.send(BackgroundEvent::Completed(id, BackgroundStatus::Failed(None)));
+                    let _ = event_tx
+                        .send(BackgroundEvent::Completed(id, BackgroundStatus::Failed(None)));
                     return;
                 }
             };
@@ -278,10 +278,8 @@ impl BackgroundManager {
             let stdout_handle = thread::spawn(move || {
                 if let Some(stdout) = stdout {
                     let reader = BufReader::new(stdout);
-                    if let Ok(mut file) = fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open(&output_file_clone)
+                    if let Ok(mut file) =
+                        fs::OpenOptions::new().create(true).append(true).open(&output_file_clone)
                     {
                         for line in reader.lines().map_while(Result::ok) {
                             let _ = writeln!(file, "{}", line);
@@ -294,10 +292,8 @@ impl BackgroundManager {
             let stderr_handle = thread::spawn(move || {
                 if let Some(stderr) = stderr {
                     let reader = BufReader::new(stderr);
-                    if let Ok(mut file) = fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open(&output_file_clone2)
+                    if let Ok(mut file) =
+                        fs::OpenOptions::new().create(true).append(true).open(&output_file_clone2)
                     {
                         for line in reader.lines().map_while(Result::ok) {
                             let _ = writeln!(file, "[stderr] {}", line);
@@ -386,16 +382,13 @@ impl BackgroundManager {
             #[cfg(unix)]
             {
                 // Use kill command to terminate process safely
-                let _ = ProcessCommand::new("kill")
-                    .args(["-TERM", &pid.to_string()])
-                    .output();
+                let _ = ProcessCommand::new("kill").args(["-TERM", &pid.to_string()]).output();
             }
 
             #[cfg(windows)]
             {
-                let _ = ProcessCommand::new("taskkill")
-                    .args(["/PID", &pid.to_string(), "/F"])
-                    .output();
+                let _ =
+                    ProcessCommand::new("taskkill").args(["/PID", &pid.to_string(), "/F"]).output();
             }
 
             // Update status
@@ -414,10 +407,7 @@ impl BackgroundManager {
     /// Get the count of running processes.
     pub fn running_count(&self) -> usize {
         let processes = self.processes.lock().unwrap();
-        processes
-            .values()
-            .filter(|p| matches!(p.status, BackgroundStatus::Running))
-            .count()
+        processes.values().filter(|p| matches!(p.status, BackgroundStatus::Running)).count()
     }
 
     /// Poll for events (non-blocking).

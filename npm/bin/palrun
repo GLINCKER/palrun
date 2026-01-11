@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+
+console.error('Palrun binary not installed. Please run: npm rebuild @glinr/palrun');
+process.exit(1);

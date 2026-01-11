@@ -1,13 +1,27 @@
 //! AI integration module.
 //!
 //! Provides natural language to command translation using Claude or local LLMs.
+//!
+//! ## Features
+//!
+//! - Command generation from natural language
+//! - Command explanation
+//! - Error diagnosis
+//! - **Agentic tool use** - AI can use MCP tools autonomously
 
+mod agent;
 mod claude;
 mod context;
+mod executor;
 mod ollama;
 
+pub use agent::{
+    mcp_tools_to_agent_tools, Agent, AgentMessage, AgentProvider, AgentResponse, AgentState,
+    AgentStopReason, AgentTool, AgentToolCall, AgentToolResult, ToolExecutor,
+};
 pub use claude::ClaudeProvider;
 pub use context::ProjectContext;
+pub use executor::{CompositeExecutor, MCPToolExecutor, ShellExecutor};
 pub use ollama::OllamaProvider;
 
 use async_trait::async_trait;

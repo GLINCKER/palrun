@@ -1,11 +1,19 @@
 //! Ollama local LLM integration.
 //!
 //! Implements the AIProvider trait for Ollama (local LLM).
+//!
+//! Supports both simple text generation and agentic tool use.
+
+use std::collections::HashMap;
 
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
+use super::agent::{
+    AgentMessage, AgentProvider, AgentResponse, AgentState, AgentStopReason, AgentTool,
+    AgentToolCall,
+};
 use super::{AIProvider, ProjectContext};
 
 /// Ollama API provider for local LLM.
@@ -42,11 +50,8 @@ impl OllamaProvider {
 
     /// Make a request to the Ollama API.
     async fn request(&self, prompt: &str) -> anyhow::Result<String> {
-        let request = OllamaRequest {
-            model: self.model.clone(),
-            prompt: prompt.to_string(),
-            stream: false,
-        };
+        let request =
+            OllamaRequest { model: self.model.clone(), prompt: prompt.to_string(), stream: false };
 
         let response = self
             .client
@@ -192,7 +197,7 @@ impl AIProvider for OllamaProvider {
     }
 }
 
-/// Ollama API request structure.
+/// Ollama API request structure (generate endpoint).
 #[derive(Debug, Serialize)]
 struct OllamaRequest {
     model: String,
@@ -200,10 +205,212 @@ struct OllamaRequest {
     stream: bool,
 }
 
-/// Ollama API response structure.
+/// Ollama API response structure (generate endpoint).
 #[derive(Debug, Deserialize)]
 struct OllamaResponse {
     response: String,
+}
+
+// ============================================================================
+// Agentic Tool Use Support (Chat API)
+// ============================================================================
+
+/// Ollama chat API request with tool support.
+#[derive(Debug, Serialize)]
+struct OllamaChatRequest {
+    model: String,
+    messages: Vec<OllamaChatMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<OllamaTool>>,
+    stream: bool,
+}
+
+/// Ollama chat message.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct OllamaChatMessage {
+    role: String,
+    content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_calls: Option<Vec<OllamaToolCall>>,
+}
+
+/// Ollama tool definition.
+#[derive(Debug, Serialize)]
+struct OllamaTool {
+    #[serde(rename = "type")]
+    tool_type: String,
+    function: OllamaFunction,
+}
+
+/// Ollama function definition.
+#[derive(Debug, Serialize)]
+struct OllamaFunction {
+    name: String,
+    description: String,
+    parameters: serde_json::Value,
+}
+
+/// Ollama tool call in a response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct OllamaToolCall {
+    function: OllamaFunctionCall,
+}
+
+/// Ollama function call details.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct OllamaFunctionCall {
+    name: String,
+    arguments: serde_json::Value,
+}
+
+/// Ollama chat API response.
+#[derive(Debug, Deserialize)]
+struct OllamaChatResponse {
+    message: OllamaChatMessage,
+    #[serde(default)]
+    done: bool,
+    #[serde(default)]
+    done_reason: Option<String>,
+}
+
+impl OllamaProvider {
+    /// Make a chat request with optional tool support.
+    async fn chat_request(
+        &self,
+        messages: Vec<OllamaChatMessage>,
+        tools: Option<Vec<OllamaTool>>,
+    ) -> anyhow::Result<OllamaChatResponse> {
+        let request =
+            OllamaChatRequest { model: self.model.clone(), messages, tools, stream: false };
+
+        let response =
+            self.client.post(format!("{}/api/chat", self.base_url)).json(&request).send().await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            anyhow::bail!("Ollama API error ({}): {}", status, body);
+        }
+
+        let response: OllamaChatResponse = response.json().await?;
+        Ok(response)
+    }
+}
+
+/// Convert AgentTool to OllamaTool.
+fn agent_tool_to_ollama(tool: &AgentTool) -> OllamaTool {
+    OllamaTool {
+        tool_type: "function".to_string(),
+        function: OllamaFunction {
+            name: tool.name.clone(),
+            description: tool.description.clone().unwrap_or_default(),
+            parameters: tool.input_schema.clone(),
+        },
+    }
+}
+
+/// Convert AgentMessage to OllamaChatMessage.
+fn agent_message_to_ollama(msg: &AgentMessage) -> OllamaChatMessage {
+    match msg {
+        AgentMessage::System { content } => OllamaChatMessage {
+            role: "system".to_string(),
+            content: content.clone(),
+            tool_calls: None,
+        },
+        AgentMessage::User { content } => OllamaChatMessage {
+            role: "user".to_string(),
+            content: content.clone(),
+            tool_calls: None,
+        },
+        AgentMessage::Assistant { content, tool_calls } => OllamaChatMessage {
+            role: "assistant".to_string(),
+            content: content.clone().unwrap_or_default(),
+            tool_calls: tool_calls.as_ref().map(|calls| {
+                calls
+                    .iter()
+                    .map(|tc| OllamaToolCall {
+                        function: OllamaFunctionCall {
+                            name: tc.name.clone(),
+                            arguments: serde_json::to_value(&tc.arguments)
+                                .unwrap_or(serde_json::json!({})),
+                        },
+                    })
+                    .collect()
+            }),
+        },
+        AgentMessage::Tool { tool_call_id: _, content } => OllamaChatMessage {
+            role: "tool".to_string(),
+            content: content.clone(),
+            tool_calls: None,
+        },
+    }
+}
+
+#[async_trait]
+impl AgentProvider for OllamaProvider {
+    async fn step(&self, state: &AgentState) -> anyhow::Result<AgentResponse> {
+        // Convert messages
+        let messages: Vec<OllamaChatMessage> =
+            state.messages.iter().map(agent_message_to_ollama).collect();
+
+        // Convert tools
+        let tools: Option<Vec<OllamaTool>> = if state.tools.is_empty() {
+            None
+        } else {
+            Some(state.tools.iter().map(agent_tool_to_ollama).collect())
+        };
+
+        // Make request
+        let response = self.chat_request(messages, tools).await?;
+
+        // Convert tool calls
+        let tool_calls: Option<Vec<AgentToolCall>> = response.message.tool_calls.map(|calls| {
+            calls
+                .into_iter()
+                .enumerate()
+                .map(|(i, tc)| {
+                    let arguments: HashMap<String, serde_json::Value> =
+                        if let serde_json::Value::Object(map) = tc.function.arguments {
+                            map.into_iter().collect()
+                        } else if let serde_json::Value::String(s) = tc.function.arguments {
+                            // Some models return JSON as a string
+                            serde_json::from_str(&s).unwrap_or_default()
+                        } else {
+                            HashMap::new()
+                        };
+
+                    AgentToolCall { id: format!("call_{}", i), name: tc.function.name, arguments }
+                })
+                .collect()
+        });
+
+        // Determine stop reason
+        let stop_reason = if tool_calls.is_some() {
+            AgentStopReason::ToolUse
+        } else if response.done_reason.as_deref() == Some("length") {
+            AgentStopReason::MaxTokens
+        } else {
+            AgentStopReason::EndTurn
+        };
+
+        Ok(AgentResponse {
+            content: if response.message.content.is_empty() {
+                None
+            } else {
+                Some(response.message.content)
+            },
+            tool_calls,
+            stop_reason,
+        })
+    }
+
+    fn name(&self) -> &str {
+        "ollama"
+    }
+
+    fn supports_tools(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]
@@ -214,7 +421,7 @@ mod tests {
     #[test]
     fn test_ollama_provider_creation() {
         let provider = OllamaProvider::new();
-        assert_eq!(provider.name(), "ollama");
+        assert_eq!(AIProvider::name(&provider), "ollama");
     }
 
     #[test]

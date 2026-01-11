@@ -126,10 +126,7 @@ impl Analytics {
         let period_name = period.display_name().to_string();
 
         if entries.is_empty() {
-            return AnalyticsReport {
-                period: period_name,
-                ..Default::default()
-            };
+            return AnalyticsReport { period: period_name, ..Default::default() };
         }
 
         // Calculate totals
@@ -152,8 +149,7 @@ impl Analytics {
             .map(|e| {
                 let success_rate = e.success_rate().unwrap_or(0.0);
                 let avg_duration = e.average_duration().unwrap_or_default();
-                let total_time =
-                    Duration::from_millis(e.total_duration_ms);
+                let total_time = Duration::from_millis(e.total_duration_ms);
 
                 CommandStats {
                     name: e.command_name.clone(),
@@ -176,9 +172,7 @@ impl Analytics {
             .cloned()
             .collect();
         failing.sort_by(|a, b| {
-            a.success_rate
-                .partial_cmp(&b.success_rate)
-                .unwrap_or(std::cmp::Ordering::Equal)
+            a.success_rate.partial_cmp(&b.success_rate).unwrap_or(std::cmp::Ordering::Equal)
         });
         let failing_commands: Vec<CommandStats> = failing.into_iter().take(5).collect();
 
@@ -225,10 +219,8 @@ impl Analytics {
         }
 
         // Insight: High failure rate commands
-        let high_failure: Vec<_> = stats
-            .iter()
-            .filter(|s| s.success_rate < 50.0 && s.execution_count >= 5)
-            .collect();
+        let high_failure: Vec<_> =
+            stats.iter().filter(|s| s.success_rate < 50.0 && s.execution_count >= 5).collect();
 
         if let Some(worst) = high_failure.first() {
             insights.push(Insight {
@@ -272,18 +264,13 @@ impl Analytics {
         }
 
         // Insight: Good success rate
-        let good_commands: Vec<_> = stats
-            .iter()
-            .filter(|s| s.success_rate >= 95.0 && s.execution_count >= 10)
-            .collect();
+        let good_commands: Vec<_> =
+            stats.iter().filter(|s| s.success_rate >= 95.0 && s.execution_count >= 10).collect();
 
         if good_commands.len() >= 3 {
             insights.push(Insight {
                 category: InsightCategory::Positive,
-                message: format!(
-                    "{} commands have a 95%+ success rate",
-                    good_commands.len()
-                ),
+                message: format!("{} commands have a 95%+ success rate", good_commands.len()),
                 suggestion: None,
             });
         }

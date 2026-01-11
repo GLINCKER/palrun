@@ -1,0 +1,43 @@
+# Rust/Cargo Project Configuration
+# Optimized for Rust projects with Cargo
+
+[general]
+confirm_dangerous = true
+max_history = 1000
+
+[ui]
+theme = "default"
+show_preview = true
+show_icons = true
+max_display = 50
+mouse = true
+
+[scanner]
+# Focus on Rust ecosystem scanners
+enabled = [
+    "cargo",    # Cargo.toml
+    "make",     # Makefiles (common in Rust projects)
+    "docker",   # Docker Compose
+    "taskfile", # Task runner
+]
+
+# Common Rust directories to ignore
+ignore_dirs = [
+    "target",
+    ".git",
+    "node_modules",  # If using wasm-pack or similar
+    "dist",
+    "pkg",           # wasm-pack output
+]
+
+# For workspaces, scan deeper
+max_depth = 5
+recursive = true
+
+[keys]
+quit = "q"
+select = "enter"
+up = "up"
+down = "down"
+clear = "ctrl+u"
+

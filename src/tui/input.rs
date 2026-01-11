@@ -48,7 +48,7 @@ pub fn handle_events(key: KeyEvent, app: &mut App) {
 fn handle_help_mode(key: KeyEvent, app: &mut App) {
     match key.code {
         // Dismiss help
-        KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Enter => {
+        KeyCode::Esc | KeyCode::Char('?' | 'q') | KeyCode::Enter => {
             app.dismiss_help();
         }
         // Ctrl+C to quit completely
@@ -167,7 +167,9 @@ fn handle_normal_mode(key: KeyEvent, app: &mut App) {
         }
 
         // Select all (Ctrl+A in multi-select mode)
-        KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) && app.multi_select_mode => {
+        KeyCode::Char('a')
+            if key.modifiers.contains(KeyModifiers::CONTROL) && app.multi_select_mode =>
+        {
             app.select_all();
         }
 
@@ -193,19 +195,49 @@ fn handle_normal_mode(key: KeyEvent, app: &mut App) {
             app.show_analytics();
         }
 
-        // Navigation
+        // Navigation - use directory navigation when browsing directories
         KeyCode::Up | KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            app.select_previous();
+            if app.is_dir_browsing() {
+                app.select_dir_previous();
+            } else {
+                app.select_previous();
+            }
         }
         KeyCode::Down | KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            app.select_next();
+            if app.is_dir_browsing() {
+                app.select_dir_next();
+            } else {
+                app.select_next();
+            }
         }
-        KeyCode::Up => app.select_previous(),
-        KeyCode::Down => app.select_next(),
+        KeyCode::Up => {
+            if app.is_slash_browsing() {
+                app.select_slash_previous();
+            } else if app.is_dir_browsing() {
+                app.select_dir_previous();
+            } else {
+                app.select_previous();
+            }
+        }
+        KeyCode::Down => {
+            if app.is_slash_browsing() {
+                app.select_slash_next();
+            } else if app.is_dir_browsing() {
+                app.select_dir_next();
+            } else {
+                app.select_next();
+            }
+        }
 
         // Selection - Execute command and show result (stay in TUI)
         KeyCode::Enter => {
-            if app.get_selected_command().is_some() {
+            // Check for slash commands first
+            if app.try_slash_command() {
+                // Slash command was handled
+            } else if app.is_dir_browsing() {
+                // Execute selected directory entry
+                app.execute_dir_selection();
+            } else if app.get_selected_command().is_some() {
                 if app.multi_select_mode && !app.selected_commands.is_empty() {
                     // Execute selected commands in parallel
                     app.execute_parallel_commands();
@@ -264,9 +296,11 @@ fn handle_normal_mode(key: KeyEvent, app: &mut App) {
         KeyCode::Home => app.move_cursor_start(),
         KeyCode::End => app.move_cursor_end(),
 
-        // Tab completion (future)
+        // Tab completion for directory browsing
         KeyCode::Tab => {
-            // TODO: Implement tab completion
+            if app.is_dir_browsing() {
+                app.complete_dir_selection();
+            }
         }
 
         _ => {}
@@ -367,11 +401,11 @@ fn handle_context_menu_mode(key: KeyEvent, app: &mut App) {
         // Select menu item
         KeyCode::Enter => {
             match app.context_menu_selected {
-                0 => app.execute_selected_command(),     // Run
-                1 => app.execute_in_background(),        // Run in background
-                2 => app.toggle_favorite(),              // Toggle favorite
-                3 => { /* Copy command - TODO */ }       // Copy
-                4 => { /* Edit - TODO */ }               // Edit
+                0 => app.execute_selected_command(), // Run
+                1 => app.execute_in_background(),    // Run in background
+                2 => app.toggle_favorite(),          // Toggle favorite
+                3 => { /* Copy command - TODO */ }   // Copy
+                4 => { /* Edit - TODO */ }           // Edit
                 _ => {}
             }
             app.dismiss_context_menu();
@@ -385,7 +419,7 @@ fn handle_context_menu_mode(key: KeyEvent, app: &mut App) {
             app.execute_in_background();
             app.dismiss_context_menu();
         }
-        KeyCode::Char('f') | KeyCode::Char('s') => {
+        KeyCode::Char('f' | 's') => {
             app.toggle_favorite();
             app.dismiss_context_menu();
         }

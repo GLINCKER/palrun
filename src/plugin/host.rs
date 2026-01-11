@@ -102,10 +102,7 @@ pub struct DefaultPluginHost {
 impl DefaultPluginHost {
     /// Create a new plugin host.
     pub fn new(capabilities: HostCapabilities) -> Self {
-        Self {
-            capabilities,
-            commands: Vec::new(),
-        }
+        Self { capabilities, commands: Vec::new() }
     }
 
     /// Get the registered commands.
@@ -240,11 +237,7 @@ mod tests {
         let caps = HostCapabilities {
             project_root: PathBuf::from("/test/project"),
             permissions: PluginPermissions {
-                filesystem: FilesystemPermissions {
-                    read: true,
-                    write: false,
-                    paths: vec![],
-                },
+                filesystem: FilesystemPermissions { read: true, write: false, paths: vec![] },
                 network: false,
                 execute: false,
                 environment: false,

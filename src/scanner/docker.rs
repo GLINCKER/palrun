@@ -299,14 +299,14 @@ mod tests {
     #[test]
     fn test_scan_simple_compose_file() {
         let temp_dir = TempDir::new().unwrap();
-        let compose_content = r#"
+        let compose_content = r"
 version: '3'
 services:
   web:
     image: nginx
   db:
     image: postgres
-"#;
+";
         fs::write(temp_dir.path().join("docker-compose.yml"), compose_content).unwrap();
 
         let scanner = DockerScanner;
@@ -358,11 +358,11 @@ services:
     fn test_scan_compose_without_version() {
         let temp_dir = TempDir::new().unwrap();
         // Modern compose files don't require version
-        let compose_content = r#"
+        let compose_content = r"
 services:
   app:
     image: alpine
-"#;
+";
         fs::write(temp_dir.path().join("compose.yaml"), compose_content).unwrap();
 
         let scanner = DockerScanner;
@@ -392,7 +392,7 @@ services:
 
     #[test]
     fn test_parse_compose_with_environment() {
-        let yaml = r#"
+        let yaml = r"
 version: '3'
 services:
   db:
@@ -400,14 +400,14 @@ services:
     environment:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=secret
-"#;
+";
         let compose: DockerCompose = serde_yaml::from_str(yaml).unwrap();
         assert!(compose.services.is_some());
     }
 
     #[test]
     fn test_parse_compose_environment_map() {
-        let yaml = r#"
+        let yaml = r"
 version: '3'
 services:
   db:
@@ -415,7 +415,7 @@ services:
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: secret
-"#;
+";
         let compose: DockerCompose = serde_yaml::from_str(yaml).unwrap();
         assert!(compose.services.is_some());
     }
@@ -423,11 +423,11 @@ services:
     #[test]
     fn test_command_source_is_docker_compose() {
         let temp_dir = TempDir::new().unwrap();
-        let compose_content = r#"
+        let compose_content = r"
 services:
   app:
     image: alpine
-"#;
+";
         fs::write(temp_dir.path().join("docker-compose.yml"), compose_content).unwrap();
 
         let scanner = DockerScanner;
@@ -441,11 +441,11 @@ services:
     #[test]
     fn test_command_tags() {
         let temp_dir = TempDir::new().unwrap();
-        let compose_content = r#"
+        let compose_content = r"
 services:
   web:
     image: nginx
-"#;
+";
         fs::write(temp_dir.path().join("docker-compose.yml"), compose_content).unwrap();
 
         let scanner = DockerScanner;

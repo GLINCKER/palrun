@@ -1,0 +1,22 @@
+name: Simple Deployment
+description: Basic deployment workflow for production
+version: 1.0.0
+
+steps:
+  - name: Install dependencies
+    command: npm install
+    description: Install all dependencies
+
+  - name: Run tests
+    command: npm test
+    description: Run test suite to ensure quality
+
+  - name: Build application
+    command: npm run build
+    description: Build for production
+
+  - name: Deploy
+    command: npm run deploy
+    description: Deploy to production server
+    confirm: true
+

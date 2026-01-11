@@ -4,9 +4,9 @@
 //! and custom providers to securely inject secrets into environment variables.
 
 use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::fs;
 
 use anyhow::{Context, Result};
 
@@ -146,16 +146,10 @@ impl SecretsManager {
         self.providers.clear();
 
         // Check 1Password
-        self.providers.insert(
-            "1password".to_string(),
-            Self::check_onepassword(),
-        );
+        self.providers.insert("1password".to_string(), Self::check_onepassword());
 
         // Check Vault
-        self.providers.insert(
-            "vault".to_string(),
-            Self::check_vault(),
-        );
+        self.providers.insert("vault".to_string(), Self::check_vault());
 
         &self.providers
     }
@@ -214,18 +208,12 @@ impl SecretsManager {
 
         match output {
             Ok(output) if output.status.success() => {
-                let version = String::from_utf8_lossy(&output.stdout)
-                    .trim()
-                    .to_string();
+                let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
                 // Check if authenticated by trying to get token status
-                let auth_check = Command::new("vault")
-                    .args(["token", "lookup"])
-                    .output();
+                let auth_check = Command::new("vault").args(["token", "lookup"]).output();
 
-                let authenticated = auth_check
-                    .map(|o| o.status.success())
-                    .unwrap_or(false);
+                let authenticated = auth_check.map(|o| o.status.success()).unwrap_or(false);
 
                 ProviderStatus {
                     provider: SecretProvider::Vault,
@@ -244,7 +232,10 @@ impl SecretsManager {
                 installed: false,
                 authenticated: false,
                 version: None,
-                error: Some("Vault CLI not found. Install from https://www.vaultproject.io/downloads".to_string()),
+                error: Some(
+                    "Vault CLI not found. Install from https://www.vaultproject.io/downloads"
+                        .to_string(),
+                ),
             },
             Err(_) => ProviderStatus {
                 provider: SecretProvider::Vault,
@@ -320,10 +311,7 @@ impl SecretsManager {
 
     /// Get references for a specific provider.
     pub fn get_references_for_provider(&self, provider: &SecretProvider) -> Vec<&SecretReference> {
-        self.references
-            .iter()
-            .filter(|r| &r.provider == provider)
-            .collect()
+        self.references.iter().filter(|r| &r.provider == provider).collect()
     }
 
     /// Resolve a 1Password secret reference.
@@ -349,11 +337,8 @@ impl SecretsManager {
             .strip_prefix("vault://")
             .ok_or_else(|| anyhow::anyhow!("Invalid Vault reference"))?;
 
-        let (secret_path, field) = if let Some((p, f)) = path.rsplit_once('#') {
-            (p, Some(f))
-        } else {
-            (path, None)
-        };
+        let (secret_path, field) =
+            if let Some((p, f)) = path.rsplit_once('#') { (p, Some(f)) } else { (path, None) };
 
         // vault kv get -field=<field> <path>
         let mut args = vec!["kv", "get"];
@@ -363,10 +348,8 @@ impl SecretsManager {
         }
         args.push(secret_path);
 
-        let output = Command::new("vault")
-            .args(&args)
-            .output()
-            .context("Failed to execute Vault CLI")?;
+        let output =
+            Command::new("vault").args(&args).output().context("Failed to execute Vault CLI")?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -397,13 +380,9 @@ impl SecretsManager {
         let command = command_template.replace("{reference}", reference);
 
         let output = if cfg!(target_os = "windows") {
-            Command::new("cmd")
-                .args(["/C", &command])
-                .output()
+            Command::new("cmd").args(["/C", &command]).output()
         } else {
-            Command::new("sh")
-                .args(["-c", &command])
-                .output()
+            Command::new("sh").args(["-c", &command]).output()
         }
         .context("Failed to execute custom secret command")?;
 
@@ -417,10 +396,7 @@ impl SecretsManager {
 
     /// Resolve all secret references and return resolved secrets.
     pub fn resolve_all(&self) -> Vec<Result<ResolvedSecret>> {
-        self.references
-            .iter()
-            .map(|r| self.resolve_reference(r))
-            .collect()
+        self.references.iter().map(|r| self.resolve_reference(r)).collect()
     }
 
     /// Inject resolved secrets into environment variables.
@@ -445,11 +421,8 @@ mod tests {
     #[test]
     fn test_parse_onepassword_reference() {
         let path = PathBuf::from(".env");
-        let reference = SecretReference::parse(
-            "API_KEY",
-            "op://Private/API Keys/credential",
-            &path,
-        );
+        let reference =
+            SecretReference::parse("API_KEY", "op://Private/API Keys/credential", &path);
 
         assert!(reference.is_some());
         let ref_val = reference.unwrap();
@@ -461,11 +434,8 @@ mod tests {
     #[test]
     fn test_parse_vault_reference() {
         let path = PathBuf::from(".env");
-        let reference = SecretReference::parse(
-            "DB_PASSWORD",
-            "vault://secret/data/database#password",
-            &path,
-        );
+        let reference =
+            SecretReference::parse("DB_PASSWORD", "vault://secret/data/database#password", &path);
 
         assert!(reference.is_some());
         let ref_val = reference.unwrap();

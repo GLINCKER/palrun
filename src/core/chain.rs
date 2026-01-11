@@ -179,10 +179,7 @@ impl CommandChain {
             steps.push(ChainStep::new(cmd, None));
         }
 
-        Self {
-            raw: input.to_string(),
-            steps,
-        }
+        Self { raw: input.to_string(), steps }
     }
 
     /// Check if this is a simple command (no chaining).
@@ -220,18 +217,12 @@ impl ChainResult {
 
     /// Get the number of failed steps.
     pub fn failed_count(&self) -> usize {
-        self.steps
-            .iter()
-            .filter(|s| matches!(s.status, ChainStepStatus::Failed(_)))
-            .count()
+        self.steps.iter().filter(|s| matches!(s.status, ChainStepStatus::Failed(_))).count()
     }
 
     /// Get the number of skipped steps.
     pub fn skipped_count(&self) -> usize {
-        self.steps
-            .iter()
-            .filter(|s| matches!(s.status, ChainStepStatus::Skipped))
-            .count()
+        self.steps.iter().filter(|s| matches!(s.status, ChainStepStatus::Skipped)).count()
     }
 
     /// Get combined output from all steps.
@@ -346,18 +337,11 @@ impl ChainExecutor {
         }
 
         let total_duration = start.elapsed();
-        let success = results.iter().all(|r| {
-            matches!(
-                r.status,
-                ChainStepStatus::Success | ChainStepStatus::Skipped
-            )
-        });
+        let success = results
+            .iter()
+            .all(|r| matches!(r.status, ChainStepStatus::Success | ChainStepStatus::Skipped));
 
-        Ok(ChainResult {
-            steps: results,
-            total_duration,
-            success,
-        })
+        Ok(ChainResult { steps: results, total_duration, success })
     }
 
     /// Execute a single command step.

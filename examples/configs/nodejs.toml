@@ -1,0 +1,49 @@
+# Node.js/NPM Project Configuration
+# Optimized for Node.js, React, Next.js, and other NPM-based projects
+
+[general]
+confirm_dangerous = true
+max_history = 1000
+
+[ui]
+theme = "default"
+show_preview = true
+show_icons = true
+max_display = 50
+mouse = true
+
+[scanner]
+# Focus on Node.js ecosystem scanners
+enabled = [
+    "npm",      # package.json scripts
+    "nx",       # Nx monorepo
+    "turbo",    # Turborepo
+    "docker",   # Docker Compose
+    "make",     # Makefiles (if used)
+]
+
+# Common Node.js directories to ignore
+ignore_dirs = [
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    ".next",
+    ".nuxt",
+    ".output",
+    "coverage",
+    ".cache",
+    "out",
+]
+
+# For monorepos, scan deeper
+max_depth = 7
+recursive = true
+
+[keys]
+quit = "q"
+select = "enter"
+up = "up"
+down = "down"
+clear = "ctrl+u"
+

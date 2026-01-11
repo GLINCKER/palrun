@@ -148,11 +148,7 @@ pub struct ParallelExecutor {
 
 impl Default for ParallelExecutor {
     fn default() -> Self {
-        Self {
-            max_concurrency: num_cpus::get().max(4),
-            timeout: None,
-            fail_fast: false,
-        }
+        Self { max_concurrency: num_cpus::get().max(4), timeout: None, fail_fast: false }
     }
 }
 
@@ -191,10 +187,7 @@ impl ParallelExecutor {
         let num_commands = commands.len();
 
         if num_commands == 0 {
-            return Ok(ParallelResult {
-                processes: Vec::new(),
-                total_duration: Duration::ZERO,
-            });
+            return Ok(ParallelResult { processes: Vec::new(), total_duration: Duration::ZERO });
         }
 
         // Create process tracking
@@ -291,10 +284,7 @@ impl ParallelExecutor {
             Err(arc) => arc.lock().unwrap().clone(),
         };
 
-        Ok(ParallelResult {
-            processes: result_processes,
-            total_duration,
-        })
+        Ok(ParallelResult { processes: result_processes, total_duration })
     }
 
     /// Execute multiple commands with streaming events.
@@ -312,10 +302,7 @@ impl ParallelExecutor {
         let num_commands = commands.len();
 
         if num_commands == 0 {
-            return Ok(ParallelResult {
-                processes: Vec::new(),
-                total_duration: Duration::ZERO,
-            });
+            return Ok(ParallelResult { processes: Vec::new(), total_duration: Duration::ZERO });
         }
 
         // Create process tracking
@@ -432,11 +419,8 @@ impl ParallelExecutor {
                     if let Some(stdout) = stdout {
                         let reader = BufReader::new(stdout);
                         for line in reader.lines().map_while(Result::ok) {
-                            let output = ProcessOutput {
-                                line,
-                                is_stderr: false,
-                                timestamp: Instant::now(),
-                            };
+                            let output =
+                                ProcessOutput { line, is_stderr: false, timestamp: Instant::now() };
                             let _ = tx_stdout.send(ProcessEvent::Output(id, output));
                         }
                     }
@@ -446,11 +430,8 @@ impl ParallelExecutor {
                     if let Some(stderr) = stderr {
                         let reader = BufReader::new(stderr);
                         for line in reader.lines().map_while(Result::ok) {
-                            let output = ProcessOutput {
-                                line,
-                                is_stderr: true,
-                                timestamp: Instant::now(),
-                            };
+                            let output =
+                                ProcessOutput { line, is_stderr: true, timestamp: Instant::now() };
                             let _ = tx_stderr.send(ProcessEvent::Output(id, output));
                         }
                     }
@@ -481,11 +462,7 @@ impl ParallelExecutor {
             }
             Err(_) => {
                 let duration = start.elapsed();
-                let _ = tx.send(ProcessEvent::Completed(
-                    id,
-                    ProcessStatus::Failed(None),
-                    duration,
-                ));
+                let _ = tx.send(ProcessEvent::Completed(id, ProcessStatus::Failed(None), duration));
             }
         }
     }
@@ -577,10 +554,7 @@ mod tests {
     #[test]
     fn test_execute_with_failure() {
         let executor = ParallelExecutor::new();
-        let commands = vec![
-            Command::new("success", "echo ok"),
-            Command::new("failure", "false"),
-        ];
+        let commands = vec![Command::new("success", "echo ok"), Command::new("failure", "false")];
 
         let result = executor.execute(commands).unwrap();
         assert_eq!(result.processes.len(), 2);

@@ -1,0 +1,55 @@
+# Monorepo Configuration
+# Optimized for Nx, Turborepo, and other monorepo setups
+
+[general]
+confirm_dangerous = true
+max_history = 2000  # More history for larger projects
+
+[ui]
+theme = "default"
+show_preview = true
+show_icons = true
+max_display = 100  # Show more commands for monorepos
+mouse = true
+
+[scanner]
+# Enable all relevant scanners for monorepos
+enabled = [
+    "npm",
+    "nx",
+    "turbo",
+    "cargo",     # For Rust workspaces
+    "go",        # For Go multi-module repos
+    "python",    # For Python monorepos
+    "docker",
+    "make",
+    "taskfile",
+]
+
+# Monorepo-specific ignore patterns
+ignore_dirs = [
+    "node_modules",
+    ".git",
+    "target",
+    "dist",
+    "build",
+    ".next",
+    ".turbo",
+    ".nx",
+    "coverage",
+    ".cache",
+    "out",
+    "__pycache__",
+]
+
+# Scan deeper for nested packages
+max_depth = 10
+recursive = true
+
+[keys]
+quit = "q"
+select = "enter"
+up = "up"
+down = "down"
+clear = "ctrl+u"
+

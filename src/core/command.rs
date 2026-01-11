@@ -45,6 +45,10 @@ pub struct Command {
     /// Workspace name (for monorepo projects)
     #[serde(default)]
     pub workspace: Option<String>,
+
+    /// Additional metadata (for MCP tools, plugins, etc.)
+    #[serde(default)]
+    pub metadata: std::collections::HashMap<String, String>,
 }
 
 impl Command {
@@ -66,6 +70,7 @@ impl Command {
             env: Vec::new(),
             branch_patterns: Vec::new(),
             workspace: None,
+            metadata: std::collections::HashMap::new(),
         }
     }
 
@@ -100,6 +105,7 @@ impl Command {
             env: Vec::new(),
             branch_patterns: Vec::new(),
             workspace: None,
+            metadata: std::collections::HashMap::new(),
         }
     }
 
@@ -123,6 +129,7 @@ impl Command {
             env: Vec::new(),
             branch_patterns: Vec::new(),
             workspace: None,
+            metadata: std::collections::HashMap::new(),
         }
     }
 
@@ -147,6 +154,7 @@ impl Command {
             env: alias.env.clone(),
             branch_patterns: alias.branches.clone(),
             workspace: None,
+            metadata: std::collections::HashMap::new(),
         }
     }
 
@@ -354,6 +362,15 @@ pub enum CommandSource {
 
     /// User-defined alias
     Alias,
+
+    /// Palrun built-in commands
+    Builtin,
+
+    /// From MCP server
+    Mcp {
+        /// Server name
+        server: String,
+    },
 }
 
 impl CommandSource {
@@ -374,6 +391,8 @@ impl CommandSource {
             Self::History => "history",
             Self::Favorite => "favorite",
             Self::Alias => "alias",
+            Self::Builtin => "pal",
+            Self::Mcp { .. } => "mcp",
         }
     }
 
@@ -394,6 +413,8 @@ impl CommandSource {
             Self::History => "📜",
             Self::Favorite => "⭐",
             Self::Alias => "🔗",
+            Self::Builtin => "▶",
+            Self::Mcp { .. } => "🔌",
         }
     }
 
@@ -484,8 +505,7 @@ mod tests {
 
     #[test]
     fn test_branch_patterns_exact_match() {
-        let cmd = Command::new("deploy", "npm run deploy")
-            .with_branch_pattern("main");
+        let cmd = Command::new("deploy", "npm run deploy").with_branch_pattern("main");
 
         assert!(cmd.matches_branch(Some("main")));
         assert!(!cmd.matches_branch(Some("develop")));
@@ -494,8 +514,7 @@ mod tests {
 
     #[test]
     fn test_branch_patterns_wildcard() {
-        let cmd = Command::new("test", "npm test")
-            .with_branch_pattern("feature/*");
+        let cmd = Command::new("test", "npm test").with_branch_pattern("feature/*");
 
         assert!(cmd.matches_branch(Some("feature/foo")));
         assert!(cmd.matches_branch(Some("feature/bar/baz")));
@@ -516,8 +535,7 @@ mod tests {
 
     #[test]
     fn test_branch_patterns_suffix_wildcard() {
-        let cmd = Command::new("hotfix", "npm run hotfix")
-            .with_branch_pattern("*-hotfix");
+        let cmd = Command::new("hotfix", "npm run hotfix").with_branch_pattern("*-hotfix");
 
         assert!(cmd.matches_branch(Some("v1.0-hotfix")));
         assert!(cmd.matches_branch(Some("urgent-hotfix")));
@@ -526,8 +544,7 @@ mod tests {
 
     #[test]
     fn test_branch_patterns_no_branch() {
-        let cmd = Command::new("deploy", "npm run deploy")
-            .with_branch_pattern("main");
+        let cmd = Command::new("deploy", "npm run deploy").with_branch_pattern("main");
 
         // With patterns but no branch (detached HEAD), should not match
         assert!(!cmd.matches_branch(None));
@@ -536,12 +553,11 @@ mod tests {
     #[test]
     fn test_branch_patterns_special_characters() {
         // Branch names with slashes, dashes, underscores
-        let cmd = Command::new("test", "npm test")
-            .with_branch_patterns(vec![
-                "feature/user-auth".to_string(),
-                "bugfix/fix_issue_123".to_string(),
-                "release/v1.0.0".to_string(),
-            ]);
+        let cmd = Command::new("test", "npm test").with_branch_patterns(vec![
+            "feature/user-auth".to_string(),
+            "bugfix/fix_issue_123".to_string(),
+            "release/v1.0.0".to_string(),
+        ]);
 
         assert!(cmd.matches_branch(Some("feature/user-auth")));
         assert!(cmd.matches_branch(Some("bugfix/fix_issue_123")));
@@ -552,10 +568,8 @@ mod tests {
     #[test]
     fn test_branch_patterns_complex_wildcards() {
         // Test various wildcard patterns
-        let cmd = Command::new("deploy", "deploy.sh").with_branch_patterns(vec![
-            "release/*".to_string(),
-            "*-hotfix".to_string(),
-        ]);
+        let cmd = Command::new("deploy", "deploy.sh")
+            .with_branch_patterns(vec!["release/*".to_string(), "*-hotfix".to_string()]);
 
         assert!(cmd.matches_branch(Some("release/v1.0.0")));
         assert!(cmd.matches_branch(Some("release/2.0")));

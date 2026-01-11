@@ -51,9 +51,7 @@ pub struct HooksManager {
 impl HooksManager {
     /// Create a hooks manager for the given repository root.
     pub fn new(repo_root: impl AsRef<Path>) -> Self {
-        Self {
-            hooks_dir: repo_root.as_ref().join(".git").join("hooks"),
-        }
+        Self { hooks_dir: repo_root.as_ref().join(".git").join("hooks") }
     }
 
     /// Create a hooks manager by discovering the Git repository.
@@ -84,14 +82,14 @@ impl HooksManager {
                 let content = fs::read_to_string(&path).ok();
                 let is_palrun = content
                     .as_ref()
-                    .map(|c| c.contains("Managed by Palrun") || c.contains("palrun") || c.contains("pal run"))
+                    .map(|c| {
+                        c.contains("Managed by Palrun")
+                            || c.contains("palrun")
+                            || c.contains("pal run")
+                    })
                     .unwrap_or(false);
-                let preview = content.as_ref().map(|c| {
-                    c.lines()
-                        .take(3)
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                });
+                let preview =
+                    content.as_ref().map(|c| c.lines().take(3).collect::<Vec<_>>().join("\n"));
 
                 hooks.push(HookInfo {
                     name: name.to_string(),
@@ -144,8 +142,7 @@ impl HooksManager {
 
         // Create hooks directory if needed
         if !self.hooks_dir.exists() {
-            fs::create_dir_all(&self.hooks_dir)
-                .context("Failed to create hooks directory")?;
+            fs::create_dir_all(&self.hooks_dir).context("Failed to create hooks directory")?;
         }
 
         // Generate hook content
@@ -217,24 +214,16 @@ impl HooksManager {
             .as_ref()
             .map(|c| c.contains("# Managed by Palrun") || c.contains("pal run"))
             .unwrap_or(false);
-        let preview = content.as_ref().map(|c| {
-            c.lines().take(5).collect::<Vec<_>>().join("\n")
-        });
+        let preview = content.as_ref().map(|c| c.lines().take(5).collect::<Vec<_>>().join("\n"));
 
-        Some(HookInfo {
-            name: name.to_string(),
-            path,
-            is_palrun,
-            is_executable,
-            preview,
-        })
+        Some(HookInfo { name: name.to_string(), path, is_palrun, is_executable, preview })
     }
 }
 
 /// Generate a hook script that calls Palrun.
 fn generate_hook_script(hook_name: &str, command: &str) -> String {
     format!(
-        r#"#!/bin/sh
+        r"#!/bin/sh
 # Managed by Palrun - Do not edit manually
 # Hook: {hook_name}
 # Command: {command}
@@ -244,7 +233,7 @@ fn generate_hook_script(hook_name: &str, command: &str) -> String {
 
 # Exit with the command's exit code
 exit $?
-"#,
+",
         hook_name = hook_name,
         command = command
     )
@@ -254,16 +243,13 @@ exit $?
 fn is_executable(path: &Path) -> bool {
     #[cfg(unix)]
     {
-        fs::metadata(path)
-            .map(|m| m.permissions().mode() & 0o111 != 0)
-            .unwrap_or(false)
+        fs::metadata(path).map(|m| m.permissions().mode() & 0o111 != 0).unwrap_or(false)
     }
     #[cfg(not(unix))]
     {
         // On Windows, check file extension
-        path.extension()
-            .map(|ext| ext == "exe" || ext == "cmd" || ext == "bat")
-            .unwrap_or(true) // Assume shell scripts are "executable"
+        path.extension().map(|ext| ext == "exe" || ext == "cmd" || ext == "bat").unwrap_or(true)
+        // Assume shell scripts are "executable"
     }
 }
 

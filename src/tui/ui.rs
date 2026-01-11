@@ -7,7 +7,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, Padding, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Padding, Paragraph, Wrap},
     Frame,
 };
 
@@ -98,30 +98,75 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
     // Left title with logo
     let left_title = " pal ";
 
-    let input = Paragraph::new(Line::from(vec![
-        Span::styled(" > ", Style::default().fg(theme.secondary)),
+    // Build terminal-style prompt with directory
+    let prompt_dir = short_dir_name(&app.cwd);
+    let prompt = format!(" {}  ", prompt_dir);
+
+    // Build input line with optional ghost text
+    let mut input_spans = vec![
+        Span::styled(&prompt, Style::default().fg(theme.secondary)),
         Span::styled(&app.input, Style::default().fg(theme.text)),
-        Span::styled("│", Style::default().fg(theme.border)),
-    ]))
-    .style(Style::default().fg(theme.text))
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme.primary))
-            .title(left_title)
-            .title_style(
-                Style::default()
-                    .fg(theme.primary)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .title_bottom(Line::from(right_title).right_aligned())
-            .title_style(Style::default().fg(theme.text_dim)),
-    );
+    ];
+
+    // Add ghost text autocomplete suggestion
+    if let Some(ref ghost) = app.ghost_text {
+        // Only show ghost text if input ends with space or slash (ready for completion)
+        let input_trimmed = app.input.trim();
+        if (input_trimmed.starts_with("cd ") || input_trimmed.starts_with("ls "))
+            && !ghost.is_empty()
+        {
+            // Calculate what part of ghost to show (excluding already typed prefix)
+            let last_segment = app.input.split(['/', ' ']).last().unwrap_or("");
+            let ghost_suffix = if ghost.to_lowercase().starts_with(&last_segment.to_lowercase()) {
+                &ghost[last_segment.len()..]
+            } else {
+                ghost.as_str()
+            };
+
+            if !ghost_suffix.is_empty() {
+                input_spans.push(Span::styled(
+                    ghost_suffix,
+                    Style::default().fg(theme.text_muted).add_modifier(Modifier::ITALIC),
+                ));
+            }
+        }
+    }
+
+    input_spans.push(Span::styled("│", Style::default().fg(theme.border)));
+
+    let input =
+        Paragraph::new(Line::from(input_spans)).style(Style::default().fg(theme.text)).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.primary))
+                .title(left_title)
+                .title_style(Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
+                .title_bottom(Line::from(right_title).right_aligned())
+                .title_style(Style::default().fg(theme.text_dim)),
+        );
 
     frame.render_widget(input, area);
 
-    // Position cursor after prompt (border + " > " + input position)
-    frame.set_cursor_position((area.x + 4 + app.cursor_position as u16, area.y + 1));
+    // Position cursor after prompt (border + prompt + input position)
+    let prompt_len = prompt.len() as u16;
+    frame.set_cursor_position((area.x + 1 + prompt_len + app.cursor_position as u16, area.y + 1));
+}
+
+/// Get a short directory name for the prompt.
+fn short_dir_name(path: &std::path::Path) -> String {
+    // Try to use ~ for home directory
+    if let Some(home) = dirs::home_dir() {
+        if path == home {
+            return "~".to_string();
+        }
+        if let Ok(suffix) = path.strip_prefix(&home) {
+            let name = suffix.file_name().and_then(|s| s.to_str()).unwrap_or("~");
+            return format!("~/{}", name);
+        }
+    }
+
+    // Just use the last component
+    path.file_name().and_then(|s| s.to_str()).unwrap_or("/").to_string()
 }
 
 /// Format command count with optional filtering indicator.
@@ -158,15 +203,115 @@ fn draw_command_list(frame: &mut Frame, app: &App, area: Rect) {
         String::new()
     };
 
-    // Handle empty state
+    // Handle empty state - show slash commands or directory listing if available
     if app.filtered_commands.is_empty() {
+        // Check if we have slash commands to show
+        if let Some(ref slash_cmds) = app.slash_commands {
+            if !slash_cmds.is_empty() {
+                let items: Vec<ListItem> = slash_cmds
+                    .iter()
+                    .enumerate()
+                    .map(|(i, cmd)| {
+                        let is_selected = i == app.slash_selected;
+                        let style = if is_selected {
+                            Style::default()
+                                .fg(theme.primary)
+                                .add_modifier(Modifier::BOLD)
+                                .bg(theme.selected_bg)
+                        } else {
+                            Style::default().fg(theme.text)
+                        };
+                        let desc_style = if is_selected {
+                            Style::default().fg(theme.text_dim).bg(theme.selected_bg)
+                        } else {
+                            Style::default().fg(theme.text_muted)
+                        };
+
+                        ListItem::new(Line::from(vec![
+                            Span::styled(&cmd.name, style),
+                            Span::styled("  ", Style::default()),
+                            Span::styled(&cmd.description, desc_style),
+                        ]))
+                    })
+                    .collect();
+
+                let list = List::new(items)
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_style(Style::default().fg(theme.border))
+                            .title(" / Commands ")
+                            .title_style(
+                                Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD),
+                            ),
+                    )
+                    .highlight_style(Style::default().bg(theme.selected_bg));
+
+                let mut list_state = ListState::default().with_selected(Some(app.slash_selected));
+                frame.render_stateful_widget(list, area, &mut list_state);
+                return;
+            }
+        }
+
+        // Check if we have directory listing to show
+        if let Some(ref dir_entries) = app.dir_listing {
+            if !dir_entries.is_empty() {
+                // Show directory entries as selectable list items
+                let items: Vec<ListItem> = dir_entries
+                    .iter()
+                    .enumerate()
+                    .map(|(i, entry)| {
+                        let is_selected = i == app.dir_selected;
+                        let (icon, color) = if entry.is_dir {
+                            ("▸ ", if is_selected { theme.primary } else { theme.accent })
+                        } else {
+                            ("  ", if is_selected { theme.text } else { theme.text_dim })
+                        };
+
+                        let style = if is_selected {
+                            Style::default()
+                                .fg(color)
+                                .add_modifier(Modifier::BOLD)
+                                .bg(theme.selected_bg)
+                        } else {
+                            Style::default().fg(color)
+                        };
+
+                        ListItem::new(Line::from(vec![
+                            Span::styled(icon, style),
+                            Span::styled(&entry.name, style),
+                            if entry.is_dir { Span::styled("/", style) } else { Span::raw("") },
+                        ]))
+                    })
+                    .collect();
+
+                let input = app.input.trim();
+                let title =
+                    if input.starts_with("cd") { " Select directory " } else { " Directories " };
+
+                let list = List::new(items)
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_style(Style::default().fg(theme.border))
+                            .title(title)
+                            .title_style(
+                                Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD),
+                            ),
+                    )
+                    .highlight_style(Style::default().bg(theme.selected_bg));
+
+                // Use stateful widget for auto-scroll
+                let mut list_state = ListState::default().with_selected(Some(app.dir_selected));
+                frame.render_stateful_widget(list, area, &mut list_state);
+                return;
+            }
+        }
+
         let empty_message = if app.input.is_empty() {
             vec![
                 Line::from(""),
-                Line::from(Span::styled(
-                    "No commands found",
-                    Style::default().fg(theme.text_dim),
-                )),
+                Line::from(Span::styled("No commands found", Style::default().fg(theme.text_dim))),
                 Line::from(""),
                 Line::from(Span::styled(
                     "Run 'pal scan' to discover commands",
@@ -202,15 +347,13 @@ fn draw_command_list(frame: &mut Frame, app: &App, area: Rect) {
             ]
         };
 
-        let empty = Paragraph::new(empty_message)
-            .alignment(Alignment::Center)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(theme.border))
-                    .title(" Commands ")
-                    .title_style(Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
-            );
+        let empty = Paragraph::new(empty_message).alignment(Alignment::Center).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border))
+                .title(" Commands ")
+                .title_style(Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+        );
 
         frame.render_widget(empty, area);
         return;
@@ -235,16 +378,11 @@ fn draw_command_list(frame: &mut Frame, app: &App, area: Rect) {
                     // Different styling for selected vs unselected
                     let (name_style, icon_style) = if is_selected {
                         (
-                            Style::default()
-                                .fg(theme.text)
-                                .add_modifier(Modifier::BOLD),
+                            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
                             Style::default().fg(theme.primary),
                         )
                     } else {
-                        (
-                            Style::default().fg(theme.text),
-                            Style::default().fg(theme.text_dim),
-                        )
+                        (Style::default().fg(theme.text), Style::default().fg(theme.text_dim))
                     };
 
                     // Build spans for the line - add checkbox for multi-select mode
@@ -255,7 +393,11 @@ fn draw_command_list(frame: &mut Frame, app: &App, area: Rect) {
                         let checkbox = if is_multi_selected { "[✓] " } else { "[ ] " };
                         spans.push(Span::styled(
                             checkbox,
-                            Style::default().fg(if is_multi_selected { theme.success } else { theme.text_dim }),
+                            Style::default().fg(if is_multi_selected {
+                                theme.success
+                            } else {
+                                theme.text_dim
+                            }),
                         ));
                     } else {
                         spans.push(Span::styled(
@@ -283,10 +425,7 @@ fn draw_command_list(frame: &mut Frame, app: &App, area: Rect) {
                         } else {
                             format!(" ⎇ {}", cmd.branch_patterns.len())
                         };
-                        spans.push(Span::styled(
-                            branch_text,
-                            Style::default().fg(theme.accent),
-                        ));
+                        spans.push(Span::styled(branch_text, Style::default().fg(theme.accent)));
                     }
 
                     let line = Line::from(spans);
@@ -317,7 +456,9 @@ fn draw_command_list(frame: &mut Frame, app: &App, area: Rect) {
         )
         .highlight_style(Style::default().bg(theme.selected_bg).add_modifier(Modifier::BOLD));
 
-    frame.render_widget(list, area);
+    // Use stateful widget for auto-scroll
+    let mut list_state = ListState::default().with_selected(Some(app.selected));
+    frame.render_stateful_widget(list, area, &mut list_state);
 }
 
 /// Draw the preview panel (right side) with context-aware content.
@@ -325,17 +466,36 @@ fn draw_preview_panel(frame: &mut Frame, app: &App, area: Rect) {
     let theme = &app.theme;
     let mut lines = Vec::new();
 
-    // --- Section 1: Location Context ---
-    // Current directory (truncated if too long)
+    // --- Section 1: User & Location Context ---
+    // User@host style display (like terminal prompt)
+    let username = std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .unwrap_or_else(|_| "user".to_string());
+
+    lines.push(Line::from(vec![
+        Span::styled(" ", Style::default().fg(theme.text_muted)),
+        Span::styled(&username, Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+    ]));
+
+    // Current directory
     let cwd_display = app.cwd.display().to_string();
-    let cwd_short = if cwd_display.len() > 35 {
-        format!("...{}", &cwd_display[cwd_display.len()-32..])
+    let cwd_short = if let Some(home) = dirs::home_dir() {
+        if let Ok(suffix) = app.cwd.strip_prefix(&home) {
+            format!("~/{}", suffix.display())
+        } else {
+            cwd_display.clone()
+        }
     } else {
-        cwd_display
+        cwd_display.clone()
+    };
+    let cwd_truncated = if cwd_short.len() > 35 {
+        format!("...{}", &cwd_short[cwd_short.len() - 32..])
+    } else {
+        cwd_short
     };
     lines.push(Line::from(vec![
         Span::styled(" ", Style::default().fg(theme.text_muted)),
-        Span::styled(&cwd_short, Style::default().fg(theme.text_dim)),
+        Span::styled(&cwd_truncated, Style::default().fg(theme.text_dim)),
     ]));
 
     // Git info (if available)
@@ -358,28 +518,43 @@ fn draw_preview_panel(frame: &mut Frame, app: &App, area: Rect) {
         // Add change counts
         let changes = git.staged_count + git.unstaged_count + git.untracked_count;
         if changes > 0 {
-            git_spans.push(Span::styled(
-                format!(" • {}Δ", changes),
-                Style::default().fg(theme.warning),
-            ));
+            git_spans
+                .push(Span::styled(format!(" • {}Δ", changes), Style::default().fg(theme.warning)));
         }
 
         lines.push(Line::from(git_spans));
     }
 
-    // Project type indicator
+    // Project type indicator (sorted for consistent display)
     if !app.registry.is_empty() {
-        let sources: std::collections::HashSet<_> = app.registry.get_all()
-            .iter()
-            .map(|c| c.source.short_name())
-            .collect();
-        let project_types: Vec<_> = sources.into_iter().take(3).collect();
+        let sources: std::collections::HashSet<_> =
+            app.registry.get_all().iter().map(|c| c.source.short_name()).collect();
+        let mut project_types: Vec<_> = sources.into_iter().collect();
+        project_types.sort(); // Sort for consistent ordering
+        let project_types: Vec<_> = project_types.into_iter().take(3).collect();
         if !project_types.is_empty() {
             lines.push(Line::from(vec![
                 Span::styled(" ", Style::default().fg(theme.secondary)),
                 Span::styled(project_types.join(", "), Style::default().fg(theme.text_muted)),
             ]));
         }
+    }
+
+    // --- Network/AI Status (when relevant) ---
+    if app.is_offline {
+        lines.push(Line::from(vec![
+            Span::styled("⚡ ", Style::default().fg(theme.warning)),
+            Span::styled("Offline Mode", Style::default().fg(theme.warning)),
+        ]));
+        lines.push(Line::from(Span::styled(
+            "  AI features unavailable",
+            Style::default().fg(theme.text_muted),
+        )));
+    } else if let Some(ref ai_status) = app.ai_status {
+        lines.push(Line::from(vec![
+            Span::styled("✦ ", Style::default().fg(theme.success)),
+            Span::styled(ai_status.as_str(), Style::default().fg(theme.text_dim)),
+        ]));
     }
 
     lines.push(Line::from("")); // Divider
@@ -394,10 +569,8 @@ fn draw_preview_panel(frame: &mut Frame, app: &App, area: Rect) {
 
         // Description if available
         if let Some(ref desc) = cmd.description {
-            lines.push(Line::from(Span::styled(
-                desc.as_str(),
-                Style::default().fg(theme.text_dim),
-            )));
+            lines
+                .push(Line::from(Span::styled(desc.as_str(), Style::default().fg(theme.text_dim))));
         }
 
         lines.push(Line::from("")); // Spacer
@@ -409,25 +582,27 @@ fn draw_preview_panel(frame: &mut Frame, app: &App, area: Rect) {
         ]));
 
         // Source info (compact)
-        lines.push(Line::from(vec![
-            Span::styled(
-                format!("{} {}", cmd.source.icon(), cmd.source.short_name()),
-                Style::default().fg(theme.text_muted),
-            ),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            format!("{} {}", cmd.source.icon(), cmd.source.short_name()),
+            Style::default().fg(theme.text_muted),
+        )]));
 
         // Execution stats from history
         if let Some(entry) = app.get_history_entry(&cmd.id) {
             lines.push(Line::from("")); // Spacer
-            let mut stats_spans = vec![
-                Span::styled(
-                    format!("{} runs", entry.execution_count),
-                    Style::default().fg(theme.text_dim),
-                ),
-            ];
+            let mut stats_spans = vec![Span::styled(
+                format!("{} runs", entry.execution_count),
+                Style::default().fg(theme.text_dim),
+            )];
 
             if let Some(rate) = entry.success_rate() {
-                let rate_color = if rate >= 80.0 { theme.success } else if rate >= 50.0 { theme.warning } else { theme.error };
+                let rate_color = if rate >= 80.0 {
+                    theme.success
+                } else if rate >= 50.0 {
+                    theme.warning
+                } else {
+                    theme.error
+                };
                 stats_spans.push(Span::styled(" • ", Style::default().fg(theme.border)));
                 stats_spans.push(Span::styled(
                     format!("{:.0}% success", rate),
@@ -442,63 +617,54 @@ fn draw_preview_panel(frame: &mut Frame, app: &App, area: Rect) {
         if !cmd.branch_patterns.is_empty() {
             lines.push(Line::from(vec![
                 Span::styled("⎇ ", Style::default().fg(theme.accent)),
-                Span::styled(
-                    cmd.branch_patterns.join(", "),
-                    Style::default().fg(theme.accent),
-                ),
+                Span::styled(cmd.branch_patterns.join(", "), Style::default().fg(theme.accent)),
             ]));
         }
-    } else if let Some(ref dir_entries) = app.dir_listing {
-        // Show directory listing for shell command preview
-        let input = app.input.trim();
-        let cmd_type = if input.starts_with("cd") { "cd" } else { "ls" };
+    } else if app.is_dir_browsing() {
+        // Directory browsing mode - show quick suggestions
         lines.push(Line::from(Span::styled(
-            format!(" {} - directory listing:", cmd_type),
-            Style::default().fg(theme.secondary),
+            "Quick Navigation",
+            Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD),
         )));
         lines.push(Line::from(""));
 
-        if dir_entries.is_empty() {
-            lines.push(Line::from(Span::styled(
-                "  (empty or no matches)",
-                Style::default().fg(theme.text_muted).add_modifier(Modifier::ITALIC),
-            )));
-        } else {
-            for (i, entry) in dir_entries.iter().take(12).enumerate() {
-                let (icon, color) = if entry.is_dir {
-                    ("📁 ", theme.accent)
-                } else {
-                    ("   ", theme.text_dim)
-                };
-                let style = if i == 0 && !app.input.contains(' ') {
-                    Style::default().fg(color).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(color)
-                };
-                lines.push(Line::from(vec![
-                    Span::styled(icon, style),
-                    Span::styled(&entry.name, style),
-                ]));
-            }
-            if dir_entries.len() > 12 {
-                lines.push(Line::from(Span::styled(
-                    format!("  ... and {} more", dir_entries.len() - 12),
-                    Style::default().fg(theme.text_muted),
-                )));
-            }
+        // Shell shortcuts
+        let shortcuts = [
+            ("cd ..", "Parent directory"),
+            ("cd ~", "Home directory"),
+            ("cd -", "Previous directory"),
+            ("ls -la", "Detailed listing"),
+        ];
+
+        for (cmd, desc) in shortcuts {
+            lines.push(Line::from(vec![
+                Span::styled(cmd, Style::default().fg(theme.accent)),
+                Span::styled(format!("  {}", desc), Style::default().fg(theme.text_muted)),
+            ]));
         }
 
-        lines.push(Line::from(""));
+        lines.push(Line::from("")); // Spacer
+
+        // Navigation hints
         lines.push(Line::from(Span::styled(
-            "Press Enter to execute",
-            Style::default().fg(theme.text_muted).add_modifier(Modifier::ITALIC),
+            "Controls:",
+            Style::default().fg(theme.text_dim).add_modifier(Modifier::BOLD),
         )));
+        lines.push(Line::from(vec![
+            Span::styled("↑↓ ", Style::default().fg(theme.accent)),
+            Span::styled("Navigate", Style::default().fg(theme.text_dim)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Tab ", Style::default().fg(theme.accent)),
+            Span::styled("Complete path", Style::default().fg(theme.text_dim)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Enter ", Style::default().fg(theme.accent)),
+            Span::styled("Execute command", Style::default().fg(theme.text_dim)),
+        ]));
     } else if let Some(ref status) = app.status_message {
         // Show status message
-        lines.push(Line::from(Span::styled(
-            status.as_str(),
-            Style::default().fg(theme.warning),
-        )));
+        lines.push(Line::from(Span::styled(status.as_str(), Style::default().fg(theme.warning))));
     } else {
         // Empty state
         lines.push(Line::from(Span::styled(
@@ -520,16 +686,14 @@ fn draw_preview_panel(frame: &mut Frame, app: &App, area: Rect) {
         Span::styled(tip, Style::default().fg(theme.text_muted).add_modifier(Modifier::ITALIC)),
     ]));
 
-    let preview = Paragraph::new(lines)
-        .wrap(Wrap { trim: true })
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border))
-                .title(" Preview ")
-                .title_style(Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
-                .padding(Padding::horizontal(1)),
-        );
+    let preview = Paragraph::new(lines).wrap(Wrap { trim: true }).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.border))
+            .title(" Preview ")
+            .title_style(Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+            .padding(Padding::horizontal(1)),
+    );
 
     frame.render_widget(preview, area);
 }
@@ -566,10 +730,7 @@ fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             } else {
                 format!("↓{}", git.behind)
             };
-            left_spans.push(Span::styled(
-                sync,
-                Style::default().fg(theme.text_muted),
-            ));
+            left_spans.push(Span::styled(sync, Style::default().fg(theme.text_muted)));
         } else if git.is_clean {
             left_spans.push(Span::styled("✓", Style::default().fg(theme.success)));
         }
@@ -584,14 +745,20 @@ fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
         Style::default().fg(theme.text_muted),
     ));
 
+    // Offline indicator
+    if app.is_offline {
+        left_spans.push(Span::styled(" │ ", Style::default().fg(theme.border)));
+        left_spans.push(Span::styled(
+            "OFFLINE",
+            Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
+        ));
+    }
+
     left_spans.push(Span::styled(" │ ", Style::default().fg(theme.border)));
 
     // Current directory (truncated)
     let cwd_display = truncate_path(&app.cwd, 20);
-    left_spans.push(Span::styled(
-        cwd_display,
-        Style::default().fg(theme.text_dim),
-    ));
+    left_spans.push(Span::styled(cwd_display, Style::default().fg(theme.text_dim)));
 
     // Right side: rotating tip or mode-specific help
     let right_text = if app.multi_select_mode {
@@ -614,18 +781,12 @@ fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
         1
     };
 
-    left_spans.push(Span::styled(
-        " ".repeat(padding),
-        Style::default(),
-    ));
+    left_spans.push(Span::styled(" ".repeat(padding), Style::default()));
 
-    left_spans.push(Span::styled(
-        right_text,
-        Style::default().fg(theme.text_muted),
-    ));
+    left_spans.push(Span::styled(right_text, Style::default().fg(theme.text_muted)));
 
-    let status = Paragraph::new(Line::from(left_spans))
-        .style(Style::default().bg(theme.background));
+    let status =
+        Paragraph::new(Line::from(left_spans)).style(Style::default().bg(theme.background));
 
     frame.render_widget(status, area);
 }
@@ -661,9 +822,9 @@ fn draw_execution_result(frame: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(4),  // Header with command info
-            Constraint::Min(8),     // Output area (stdout/stderr)
-            Constraint::Length(2),  // Help bar
+            Constraint::Length(4), // Header with command info
+            Constraint::Min(8),    // Output area (stdout/stderr)
+            Constraint::Length(2), // Help bar
         ])
         .split(area);
 
@@ -672,8 +833,7 @@ fn draw_execution_result(frame: &mut Frame, app: &App) {
         Some(o) => o,
         None => {
             // Should not happen, but handle gracefully
-            let msg = Paragraph::new("No output available")
-                .alignment(Alignment::Center);
+            let msg = Paragraph::new("No output available").alignment(Alignment::Center);
             frame.render_widget(msg, area);
             return;
         }
@@ -682,9 +842,7 @@ fn draw_execution_result(frame: &mut Frame, app: &App) {
     // Header with command info and status
     let status_icon = if output.success { "✓" } else { "✗" };
     let status_color = if output.success { theme.success } else { theme.error };
-    let exit_code_text = output.exit_code
-        .map(|c| format!(" (exit {})", c))
-        .unwrap_or_default();
+    let exit_code_text = output.exit_code.map(|c| format!(" (exit {})", c)).unwrap_or_default();
 
     let header_lines = vec![
         Line::from(vec![
@@ -696,10 +854,7 @@ fn draw_execution_result(frame: &mut Frame, app: &App) {
                 &output.command_name,
                 Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(
-                exit_code_text,
-                Style::default().fg(theme.text_dim),
-            ),
+            Span::styled(exit_code_text, Style::default().fg(theme.text_dim)),
         ]),
         Line::from(vec![
             Span::styled("$ ", Style::default().fg(theme.secondary)),
@@ -707,14 +862,13 @@ fn draw_execution_result(frame: &mut Frame, app: &App) {
         ]),
     ];
 
-    let header = Paragraph::new(header_lines)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(status_color))
-                .title(" Command Result ")
-                .title_style(Style::default().fg(status_color).add_modifier(Modifier::BOLD)),
-        );
+    let header = Paragraph::new(header_lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(status_color))
+            .title(" Command Result ")
+            .title_style(Style::default().fg(status_color).add_modifier(Modifier::BOLD)),
+    );
 
     frame.render_widget(header, chunks[0]);
 
@@ -734,7 +888,15 @@ fn draw_execution_result(frame: &mut Frame, app: &App) {
             ])
             .split(chunks[1]);
 
-        draw_output_panel(frame, app, "stdout", &output.stdout, theme.text, output_chunks[0], scroll);
+        draw_output_panel(
+            frame,
+            app,
+            "stdout",
+            &output.stdout,
+            theme.text,
+            output_chunks[0],
+            scroll,
+        );
         draw_output_panel(frame, app, "stderr", &output.stderr, theme.error, output_chunks[1], 0);
     } else if has_stdout {
         draw_output_panel(frame, app, "Output", &output.stdout, theme.text, chunks[1], scroll);
@@ -761,7 +923,7 @@ fn draw_execution_result(frame: &mut Frame, app: &App) {
     }
 
     // Help bar for result screen
-    let help_items = vec![
+    let help_items = [
         ("↑↓/jk", "Scroll"),
         ("PgUp/Dn", "Page"),
         ("Enter", "Back"),
@@ -776,15 +938,9 @@ fn draw_execution_result(frame: &mut Frame, app: &App) {
         }
         spans.push(Span::styled(
             format!(" {} ", key),
-            Style::default()
-                .fg(theme.text)
-                .bg(theme.selected_bg)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(theme.text).bg(theme.selected_bg).add_modifier(Modifier::BOLD),
         ));
-        spans.push(Span::styled(
-            format!(" {} ", action),
-            Style::default().fg(theme.text_dim),
-        ));
+        spans.push(Span::styled(format!(" {} ", action), Style::default().fg(theme.text_dim)));
     }
 
     let help = Paragraph::new(Line::from(spans))
@@ -795,7 +951,15 @@ fn draw_execution_result(frame: &mut Frame, app: &App) {
 }
 
 /// Draw an output panel (stdout or stderr) with scroll support.
-fn draw_output_panel(frame: &mut Frame, app: &App, title: &str, content: &str, color: Color, area: Rect, scroll: usize) {
+fn draw_output_panel(
+    frame: &mut Frame,
+    app: &App,
+    title: &str,
+    content: &str,
+    color: Color,
+    area: Rect,
+    scroll: usize,
+) {
     let theme = &app.theme;
 
     // Split content into lines
@@ -815,21 +979,17 @@ fn draw_output_panel(frame: &mut Frame, app: &App, title: &str, content: &str, c
     };
 
     // Apply scroll offset
-    let visible_lines: Vec<Line> = all_lines
-        .into_iter()
-        .skip(scroll)
-        .collect();
+    let visible_lines: Vec<Line> = all_lines.into_iter().skip(scroll).collect();
 
-    let output = Paragraph::new(visible_lines)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border))
-                .title(format!(" {} ", title))
-                .title_style(Style::default().fg(theme.secondary))
-                .title_bottom(Line::from(scroll_info).right_aligned())
-                .padding(Padding::horizontal(1)),
-        );
+    let output = Paragraph::new(visible_lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.border))
+            .title(format!(" {} ", title))
+            .title_style(Style::default().fg(theme.secondary))
+            .title_bottom(Line::from(scroll_info).right_aligned())
+            .padding(Padding::horizontal(1)),
+    );
 
     frame.render_widget(output, area);
 }
@@ -843,27 +1003,19 @@ fn draw_help_screen(frame: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Title
-            Constraint::Min(10),    // Content
-            Constraint::Length(2),  // Footer
+            Constraint::Length(3), // Title
+            Constraint::Min(10),   // Content
+            Constraint::Length(2), // Footer
         ])
         .split(area);
 
     // Title
-    let title = Paragraph::new(Line::from(vec![
-        Span::styled(
-            " Keyboard Shortcuts ",
-            Style::default()
-                .fg(theme.primary)
-                .add_modifier(Modifier::BOLD),
-        ),
-    ]))
+    let title = Paragraph::new(Line::from(vec![Span::styled(
+        " Keyboard Shortcuts ",
+        Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
+    )]))
     .alignment(Alignment::Center)
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme.primary)),
-    );
+    .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.primary)));
     frame.render_widget(title, chunks[0]);
 
     // Help content - organized by category
@@ -954,54 +1106,32 @@ fn draw_help_screen(frame: &mut Frame, app: &App) {
     lines.push(help_line("Ctrl+C", "Quit", theme));
     lines.push(help_line("q", "Quit (when input empty)", theme));
 
-    let content = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border))
-                .padding(Padding::horizontal(2)),
-        );
+    let content = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.border))
+            .padding(Padding::horizontal(2)),
+    );
     frame.render_widget(content, chunks[1]);
 
     // Footer with dismiss hint
     let footer = Paragraph::new(Line::from(vec![
-        Span::styled(
-            " Press ",
-            Style::default().fg(theme.text_dim),
-        ),
+        Span::styled(" Press ", Style::default().fg(theme.text_dim)),
         Span::styled(
             "Esc",
-            Style::default()
-                .fg(theme.text)
-                .bg(theme.selected_bg)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(theme.text).bg(theme.selected_bg).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            ", ",
-            Style::default().fg(theme.text_dim),
-        ),
+        Span::styled(", ", Style::default().fg(theme.text_dim)),
         Span::styled(
             "?",
-            Style::default()
-                .fg(theme.text)
-                .bg(theme.selected_bg)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(theme.text).bg(theme.selected_bg).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            ", or ",
-            Style::default().fg(theme.text_dim),
-        ),
+        Span::styled(", or ", Style::default().fg(theme.text_dim)),
         Span::styled(
             "Enter",
-            Style::default()
-                .fg(theme.text)
-                .bg(theme.selected_bg)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(theme.text).bg(theme.selected_bg).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            " to close ",
-            Style::default().fg(theme.text_dim),
-        ),
+        Span::styled(" to close ", Style::default().fg(theme.text_dim)),
     ]))
     .alignment(Alignment::Center);
     frame.render_widget(footer, chunks[2]);
@@ -1016,27 +1146,19 @@ fn draw_history_screen(frame: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Title
-            Constraint::Min(10),    // Content
-            Constraint::Length(2),  // Footer
+            Constraint::Length(3), // Title
+            Constraint::Min(10),   // Content
+            Constraint::Length(2), // Footer
         ])
         .split(area);
 
     // Title
-    let title = Paragraph::new(Line::from(vec![
-        Span::styled(
-            " Command History ",
-            Style::default()
-                .fg(theme.primary)
-                .add_modifier(Modifier::BOLD),
-        ),
-    ]))
+    let title = Paragraph::new(Line::from(vec![Span::styled(
+        " Command History ",
+        Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
+    )]))
     .alignment(Alignment::Center)
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme.primary)),
-    );
+    .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.primary)));
     frame.render_widget(title, chunks[0]);
 
     // Get history entries
@@ -1046,10 +1168,7 @@ fn draw_history_screen(frame: &mut Frame, app: &App) {
         // Empty state
         let empty_lines = vec![
             Line::from(""),
-            Line::from(Span::styled(
-                "No command history yet",
-                Style::default().fg(theme.text_dim),
-            )),
+            Line::from(Span::styled("No command history yet", Style::default().fg(theme.text_dim))),
             Line::from(""),
             Line::from(Span::styled(
                 "Execute some commands to see history here",
@@ -1057,13 +1176,9 @@ fn draw_history_screen(frame: &mut Frame, app: &App) {
             )),
         ];
 
-        let empty = Paragraph::new(empty_lines)
-            .alignment(Alignment::Center)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(theme.border)),
-            );
+        let empty = Paragraph::new(empty_lines).alignment(Alignment::Center).block(
+            Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.border)),
+        );
         frame.render_widget(empty, chunks[1]);
     } else {
         // Build history lines
@@ -1088,19 +1203,26 @@ fn draw_history_screen(frame: &mut Frame, app: &App) {
                 Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
             ),
         ]));
-        lines.push(Line::from(Span::styled(
-            "─".repeat(60),
-            Style::default().fg(theme.border),
-        )));
+        lines.push(Line::from(Span::styled("─".repeat(60), Style::default().fg(theme.border))));
 
         // History entries
         for entry in history_entries.iter().take(30) {
-            let success_rate = entry.success_rate()
+            let success_rate = entry
+                .success_rate()
                 .map(|r| format!("{:.0}%", r * 100.0))
                 .unwrap_or_else(|| "-".to_string());
 
-            let success_color = entry.success_rate()
-                .map(|r| if r >= 0.8 { theme.success } else if r >= 0.5 { theme.warning } else { theme.error })
+            let success_color = entry
+                .success_rate()
+                .map(|r| {
+                    if r >= 0.8 {
+                        theme.success
+                    } else if r >= 0.5 {
+                        theme.warning
+                    } else {
+                        theme.error
+                    }
+                })
                 .unwrap_or(theme.text_dim);
 
             // Truncate command name if too long
@@ -1111,18 +1233,12 @@ fn draw_history_screen(frame: &mut Frame, app: &App) {
             };
 
             lines.push(Line::from(vec![
-                Span::styled(
-                    format!("{:<30}", cmd_name),
-                    Style::default().fg(theme.text),
-                ),
+                Span::styled(format!("{:<30}", cmd_name), Style::default().fg(theme.text)),
                 Span::styled(
                     format!("{:>8}", entry.execution_count),
                     Style::default().fg(theme.text_dim),
                 ),
-                Span::styled(
-                    format!("{:>10}", success_rate),
-                    Style::default().fg(success_color),
-                ),
+                Span::styled(format!("{:>10}", success_rate), Style::default().fg(success_color)),
                 Span::styled(
                     format!("{:>12}", entry.last_used_display()),
                     Style::default().fg(theme.text_muted),
@@ -1130,44 +1246,28 @@ fn draw_history_screen(frame: &mut Frame, app: &App) {
             ]));
         }
 
-        let content = Paragraph::new(lines)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(theme.border))
-                    .padding(Padding::horizontal(1)),
-            );
+        let content = Paragraph::new(lines).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border))
+                .padding(Padding::horizontal(1)),
+        );
         frame.render_widget(content, chunks[1]);
     }
 
     // Footer with hints
     let footer = Paragraph::new(Line::from(vec![
-        Span::styled(
-            " Press ",
-            Style::default().fg(theme.text_dim),
-        ),
+        Span::styled(" Press ", Style::default().fg(theme.text_dim)),
         Span::styled(
             "Esc",
-            Style::default()
-                .fg(theme.text)
-                .bg(theme.selected_bg)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(theme.text).bg(theme.selected_bg).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            " or ",
-            Style::default().fg(theme.text_dim),
-        ),
+        Span::styled(" or ", Style::default().fg(theme.text_dim)),
         Span::styled(
             "Ctrl+H",
-            Style::default()
-                .fg(theme.text)
-                .bg(theme.selected_bg)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(theme.text).bg(theme.selected_bg).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            " to close ",
-            Style::default().fg(theme.text_dim),
-        ),
+        Span::styled(" to close ", Style::default().fg(theme.text_dim)),
     ]))
     .alignment(Alignment::Center);
     frame.render_widget(footer, chunks[2]);
@@ -1185,11 +1285,11 @@ fn draw_analytics_screen(frame: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),   // Title
-            Constraint::Length(5),   // Summary stats
-            Constraint::Min(8),      // Bar chart
-            Constraint::Length(8),   // Insights
-            Constraint::Length(2),   // Footer
+            Constraint::Length(3), // Title
+            Constraint::Length(5), // Summary stats
+            Constraint::Min(8),    // Bar chart
+            Constraint::Length(8), // Insights
+            Constraint::Length(2), // Footer
         ])
         .split(area);
 
@@ -1197,71 +1297,57 @@ fn draw_analytics_screen(frame: &mut Frame, app: &App) {
     let title = Paragraph::new(Line::from(vec![
         Span::styled(
             " Usage Analytics ",
-            Style::default()
-                .fg(theme.primary)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            format!(" ({})", report.period),
-            Style::default().fg(theme.text_dim),
-        ),
+        Span::styled(format!(" ({})", report.period), Style::default().fg(theme.text_dim)),
     ]))
     .alignment(Alignment::Center)
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme.primary)),
-    );
+    .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.primary)));
     frame.render_widget(title, chunks[0]);
 
     // Summary stats row
     let total_time_str = crate::core::Analytics::format_duration(report.total_time);
-    let stats_text = vec![
-        Line::from(vec![
-            Span::styled("  Total Executions: ", Style::default().fg(theme.text_dim)),
-            Span::styled(
-                format!("{}", report.total_executions),
-                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled("    Unique Commands: ", Style::default().fg(theme.text_dim)),
-            Span::styled(
-                format!("{}", report.unique_commands),
-                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled("    Success Rate: ", Style::default().fg(theme.text_dim)),
-            Span::styled(
-                format!("{:.1}%", report.overall_success_rate),
-                Style::default()
-                    .fg(if report.overall_success_rate >= 80.0 { theme.success }
-                        else if report.overall_success_rate >= 50.0 { theme.warning }
-                        else { theme.error })
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled("    Total Time: ", Style::default().fg(theme.text_dim)),
-            Span::styled(
-                total_time_str,
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-        ]),
-    ];
+    let stats_text = vec![Line::from(vec![
+        Span::styled("  Total Executions: ", Style::default().fg(theme.text_dim)),
+        Span::styled(
+            format!("{}", report.total_executions),
+            Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("    Unique Commands: ", Style::default().fg(theme.text_dim)),
+        Span::styled(
+            format!("{}", report.unique_commands),
+            Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("    Success Rate: ", Style::default().fg(theme.text_dim)),
+        Span::styled(
+            format!("{:.1}%", report.overall_success_rate),
+            Style::default()
+                .fg(if report.overall_success_rate >= 80.0 {
+                    theme.success
+                } else if report.overall_success_rate >= 50.0 {
+                    theme.warning
+                } else {
+                    theme.error
+                })
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("    Total Time: ", Style::default().fg(theme.text_dim)),
+        Span::styled(total_time_str, Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+    ])];
 
-    let stats = Paragraph::new(stats_text)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border))
-                .title(Span::styled(" Summary ", Style::default().fg(theme.accent))),
-        );
+    let stats = Paragraph::new(stats_text).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.border))
+            .title(Span::styled(" Summary ", Style::default().fg(theme.accent))),
+    );
     frame.render_widget(stats, chunks[1]);
 
     // Bar chart for top commands
     if report.top_commands.is_empty() {
         let empty = Paragraph::new(vec![
             Line::from(""),
-            Line::from(Span::styled(
-                "No command history yet",
-                Style::default().fg(theme.text_dim),
-            )),
+            Line::from(Span::styled("No command history yet", Style::default().fg(theme.text_dim))),
             Line::from(""),
             Line::from(Span::styled(
                 "Execute some commands to see analytics",
@@ -1289,7 +1375,8 @@ fn draw_analytics_screen(frame: &mut Frame, app: &App) {
             };
 
             let bar_max_width = chart_width.saturating_sub(30);
-            let bar_len = (stat.execution_count as f64 / max_count as f64 * bar_max_width as f64) as usize;
+            let bar_len =
+                (stat.execution_count as f64 / max_count as f64 * bar_max_width as f64) as usize;
 
             // Alternate colors for visual clarity
             let bar_color = if i % 2 == 0 { theme.primary } else { theme.accent };
@@ -1297,10 +1384,7 @@ fn draw_analytics_screen(frame: &mut Frame, app: &App) {
             chart_lines.push(Line::from(vec![
                 Span::styled(name, Style::default().fg(theme.text)),
                 Span::raw(" "),
-                Span::styled(
-                    "█".repeat(bar_len.max(1)),
-                    Style::default().fg(bar_color),
-                ),
+                Span::styled("█".repeat(bar_len.max(1)), Style::default().fg(bar_color)),
                 Span::styled(
                     format!(" ({})", stat.execution_count),
                     Style::default().fg(theme.text_dim),
@@ -1308,25 +1392,22 @@ fn draw_analytics_screen(frame: &mut Frame, app: &App) {
             ]));
         }
 
-        let chart = Paragraph::new(chart_lines)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(theme.border))
-                    .title(Span::styled(" Top Commands ", Style::default().fg(theme.accent)))
-                    .padding(Padding::horizontal(1)),
-            );
+        let chart = Paragraph::new(chart_lines).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border))
+                .title(Span::styled(" Top Commands ", Style::default().fg(theme.accent)))
+                .padding(Padding::horizontal(1)),
+        );
         frame.render_widget(chart, chunks[2]);
     }
 
     // Insights section
     if report.insights.is_empty() {
-        let no_insights = Paragraph::new(vec![
-            Line::from(Span::styled(
-                "  Run more commands to generate insights",
-                Style::default().fg(theme.text_dim),
-            )),
-        ])
+        let no_insights = Paragraph::new(vec![Line::from(Span::styled(
+            "  Run more commands to generate insights",
+            Style::default().fg(theme.text_dim),
+        ))])
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -1364,44 +1445,28 @@ fn draw_analytics_screen(frame: &mut Frame, app: &App) {
             }
         }
 
-        let insights = Paragraph::new(insight_lines)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(theme.border))
-                    .title(Span::styled(" Insights ", Style::default().fg(theme.accent))),
-            );
+        let insights = Paragraph::new(insight_lines).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border))
+                .title(Span::styled(" Insights ", Style::default().fg(theme.accent))),
+        );
         frame.render_widget(insights, chunks[3]);
     }
 
     // Footer with hints
     let footer = Paragraph::new(Line::from(vec![
-        Span::styled(
-            " Press ",
-            Style::default().fg(theme.text_dim),
-        ),
+        Span::styled(" Press ", Style::default().fg(theme.text_dim)),
         Span::styled(
             "Esc",
-            Style::default()
-                .fg(theme.text)
-                .bg(theme.selected_bg)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(theme.text).bg(theme.selected_bg).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            " or ",
-            Style::default().fg(theme.text_dim),
-        ),
+        Span::styled(" or ", Style::default().fg(theme.text_dim)),
         Span::styled(
             "Ctrl+G",
-            Style::default()
-                .fg(theme.text)
-                .bg(theme.selected_bg)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(theme.text).bg(theme.selected_bg).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            " to close ",
-            Style::default().fg(theme.text_dim),
-        ),
+        Span::styled(" to close ", Style::default().fg(theme.text_dim)),
     ]))
     .alignment(Alignment::Center);
     frame.render_widget(footer, chunks[4]);
@@ -1414,10 +1479,7 @@ fn help_line<'a>(key: &'a str, description: &'a str, theme: &crate::tui::Theme) 
             format!("  {:14}", key),
             Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            description,
-            Style::default().fg(theme.text),
-        ),
+        Span::styled(description, Style::default().fg(theme.text)),
     ])
 }
 
@@ -1440,11 +1502,7 @@ fn draw_pass_through_overlay(frame: &mut Frame, app: &App) {
     frame.render_widget(Clear, popup_area);
 
     let cmd = app.pass_through_command.as_deref().unwrap_or("");
-    let truncated_cmd = if cmd.len() > 40 {
-        format!("{}...", &cmd[..37])
-    } else {
-        cmd.to_string()
-    };
+    let truncated_cmd = if cmd.len() > 40 { format!("{}...", &cmd[..37]) } else { cmd.to_string() };
 
     let content = vec![
         Line::from(""),
@@ -1460,15 +1518,14 @@ fn draw_pass_through_overlay(frame: &mut Frame, app: &App) {
         ]),
     ];
 
-    let popup = Paragraph::new(content)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.primary))
-                .title(" Run Shell Command ")
-                .title_style(Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
-                .style(Style::default().bg(theme.background)),
-        );
+    let popup = Paragraph::new(content).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.primary))
+            .title(" Run Shell Command ")
+            .title_style(Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
+            .style(Style::default().bg(theme.background)),
+    );
 
     frame.render_widget(popup, popup_area);
 }
@@ -1491,7 +1548,7 @@ fn draw_palette_overlay(frame: &mut Frame, app: &App) {
     // Clear and render
     frame.render_widget(Clear, popup_area);
 
-    let items = vec![
+    let items = [
         ("History", "Ctrl+H", 0),
         ("Analytics", "Ctrl+G", 1),
         ("Settings", "Ctrl+,", 2),
@@ -1515,10 +1572,7 @@ fn draw_palette_overlay(frame: &mut Frame, app: &App) {
                         .fg(if is_selected { theme.text } else { theme.text_dim })
                         .add_modifier(if is_selected { Modifier::BOLD } else { Modifier::empty() }),
                 ),
-                Span::styled(
-                    *shortcut,
-                    Style::default().fg(theme.text_muted),
-                ),
+                Span::styled(*shortcut, Style::default().fg(theme.text_muted)),
             ]);
             ListItem::new(line).style(if is_selected {
                 Style::default().bg(theme.selected_bg)
@@ -1528,15 +1582,14 @@ fn draw_palette_overlay(frame: &mut Frame, app: &App) {
         })
         .collect();
 
-    let list = List::new(list_items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.primary))
-                .title(" Actions (Ctrl+P) ")
-                .title_style(Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
-                .style(Style::default().bg(theme.background)),
-        );
+    let list = List::new(list_items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.primary))
+            .title(" Actions (Ctrl+P) ")
+            .title_style(Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
+            .style(Style::default().bg(theme.background)),
+    );
 
     frame.render_widget(list, popup_area);
 }
@@ -1559,7 +1612,7 @@ fn draw_context_menu_overlay(frame: &mut Frame, app: &App) {
     // Clear and render
     frame.render_widget(Clear, popup_area);
 
-    let items = vec![
+    let items = [
         ("Run", "Enter", 0),
         ("Run in Background", "Ctrl+B", 1),
         ("Toggle Favorite", "Ctrl+S", 2),
@@ -1582,10 +1635,7 @@ fn draw_context_menu_overlay(frame: &mut Frame, app: &App) {
                         .fg(if is_selected { theme.text } else { theme.text_dim })
                         .add_modifier(if is_selected { Modifier::BOLD } else { Modifier::empty() }),
                 ),
-                Span::styled(
-                    *shortcut,
-                    Style::default().fg(theme.text_muted),
-                ),
+                Span::styled(*shortcut, Style::default().fg(theme.text_muted)),
             ]);
             ListItem::new(line).style(if is_selected {
                 Style::default().bg(theme.selected_bg)
@@ -1601,15 +1651,14 @@ fn draw_context_menu_overlay(frame: &mut Frame, app: &App) {
         " Actions ".to_string()
     };
 
-    let list = List::new(list_items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.primary))
-                .title(title)
-                .title_style(Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
-                .style(Style::default().bg(theme.background)),
-        );
+    let list = List::new(list_items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.primary))
+            .title(title)
+            .title_style(Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
+            .style(Style::default().bg(theme.background)),
+    );
 
     frame.render_widget(list, popup_area);
 }

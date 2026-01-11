@@ -31,11 +31,7 @@ pub enum PluginError {
 
     /// Plugin version incompatible.
     #[error("Plugin '{name}' requires API version {required}, but host provides {available}")]
-    IncompatibleVersion {
-        name: String,
-        required: String,
-        available: String,
-    },
+    IncompatibleVersion { name: String, required: String, available: String },
 
     /// Permission denied.
     #[error("Plugin '{plugin}' requires permission '{permission}' which is not granted")]
@@ -64,4 +60,8 @@ pub enum PluginError {
     /// Network error (for plugin downloads).
     #[error("Network error: {0}")]
     Network(String),
+
+    /// Validation error (e.g., checksum mismatch).
+    #[error("Validation error: {0}")]
+    Validation(String),
 }

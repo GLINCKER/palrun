@@ -69,21 +69,49 @@ cd palrun
 cargo install --path .
 ```
 
-### Homebrew (Coming Soon)
+### Homebrew (macOS/Linux)
 
 ```bash
-brew install glincker/tap/palrun
+brew tap GLINCKER/tap
+brew install palrun
 ```
 
-### NPM (Coming Soon)
+### NPM (Node.js users)
 
 ```bash
-npm install -g palrun
+npm install -g @glinr/palrun
+```
+
+### Quick Install Script
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/GLINCKER/palrun/main/scripts/install.sh | bash
 ```
 
 ## Quick Start
 
-### Interactive Mode
+### 1. Set Up Your Project
+
+Initialize Palrun in your project with intelligent detection:
+
+```bash
+palrun setup
+```
+
+This will:
+- Detect your project type (Node.js, Rust, Python, etc.)
+- Create `.palrun.toml` with recommended settings
+- Generate `.palrun/runbooks/` with sample workflows
+- Suggest relevant configurations
+
+Options:
+```bash
+palrun setup --dry-run          # Preview what would be created
+palrun setup --force            # Overwrite existing files
+palrun setup --non-interactive  # Use defaults without prompts
+```
+
+### 2. Interactive Mode
 
 Launch the command palette:
 
@@ -253,15 +281,24 @@ cargo run -- list
 cargo run -- scan
 ```
 
-## Roadmap
+## Features Status
 
-- [ ] AI-powered command suggestions (Claude + local LLM)
-- [ ] Runbook system for team workflows
+### Completed
+- [x] AI-powered command suggestions (Claude, OpenAI, Ollama)
+- [x] Runbook system for team workflows
+- [x] Command history and analytics
+- [x] Git integration (branch switching, status)
+- [x] Environment management (nvm, pyenv, etc.)
+- [x] Plugin system with SDK
+- [x] MCP (Model Context Protocol) integration
+- [x] Advanced search and filtering
+- [x] Theme support (multiple built-in themes)
+
+### Coming Soon
 - [ ] Cloud sync and team collaboration
-- [ ] Advanced search and filtering
-- [ ] Command history and analytics
-- [ ] Custom command aliases
-- [ ] Multi-project workspace support
+- [ ] VS Code extension
+- [ ] Signed binaries for macOS/Windows
+- [ ] More IDE integrations
 
 ## Contributing
 

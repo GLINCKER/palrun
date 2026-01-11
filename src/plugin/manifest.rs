@@ -138,16 +138,10 @@ impl PluginManifest {
     /// Check if this manifest is compatible with the given API version.
     pub fn is_compatible_with(&self, host_api_version: &str) -> bool {
         // Simple compatibility check: major version must match
-        let required: Vec<u32> = self
-            .plugin
-            .api_version
-            .split('.')
-            .filter_map(|s| s.parse().ok())
-            .collect();
-        let available: Vec<u32> = host_api_version
-            .split('.')
-            .filter_map(|s| s.parse().ok())
-            .collect();
+        let required: Vec<u32> =
+            self.plugin.api_version.split('.').filter_map(|s| s.parse().ok()).collect();
+        let available: Vec<u32> =
+            host_api_version.split('.').filter_map(|s| s.parse().ok()).collect();
 
         if required.is_empty() || available.is_empty() {
             return false;

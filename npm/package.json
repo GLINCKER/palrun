@@ -1,0 +1,49 @@
+{
+  "name": "@glinr/palrun",
+  "version": "0.1.0",
+  "description": "AI command palette for your terminal - discover and run project commands instantly",
+  "keywords": [
+    "cli",
+    "terminal",
+    "tui",
+    "command-palette",
+    "ai",
+    "monorepo",
+    "productivity",
+    "developer-tools"
+  ],
+  "author": "GLINR <hello@glinr.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GLINCKER/palrun.git"
+  },
+  "homepage": "https://glinr.com/palrun",
+  "bugs": {
+    "url": "https://github.com/GLINCKER/palrun/issues"
+  },
+  "bin": {
+    "palrun": "bin/palrun",
+    "pal": "bin/palrun"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js",
+    "preuninstall": "node scripts/uninstall.js"
+  },
+  "files": [
+    "bin/",
+    "scripts/"
+  ],
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}

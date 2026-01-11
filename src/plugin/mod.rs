@@ -28,14 +28,20 @@
 
 mod error;
 mod host;
-mod manifest;
 mod manager;
+mod manifest;
+mod registry;
 mod runtime;
 mod types;
 
 pub use error::{PluginError, PluginResult};
 pub use host::{HostCapabilities, PluginHost};
-pub use manifest::{FilesystemPermissions, PluginManifest, PluginPermissions};
 pub use manager::{InstalledPlugin, PluginManager, PluginState};
+pub use manifest::{FilesystemPermissions, PluginManifest, PluginPermissions};
+pub use registry::{
+    RegistryClient, RegistryPlugin, RemoteRegistry, SearchResult, DEFAULT_REGISTRY_URL,
+};
 pub use runtime::PluginRuntime;
-pub use types::{PluginCommand, PluginInfo, PluginType, MANIFEST_FILE, PLUGIN_API_VERSION, PLUGIN_EXTENSION};
+pub use types::{
+    PluginCommand, PluginInfo, PluginType, MANIFEST_FILE, PLUGIN_API_VERSION, PLUGIN_EXTENSION,
+};

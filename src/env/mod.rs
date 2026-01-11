@@ -6,7 +6,9 @@
 pub mod secrets;
 pub mod version;
 
-pub use secrets::{ProviderStatus, ResolvedSecret, SecretProvider, SecretReference, SecretsManager};
+pub use secrets::{
+    ProviderStatus, ResolvedSecret, SecretProvider, SecretReference, SecretsManager,
+};
 pub use version::{RuntimeType, RuntimeVersion, VersionManager};
 
 use std::collections::HashMap;
@@ -146,10 +148,7 @@ impl EnvSource {
     pub fn display(&self) -> String {
         match self {
             EnvSource::DotEnv(path) => {
-                path.file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or(".env")
-                    .to_string()
+                path.file_name().and_then(|n| n.to_str()).unwrap_or(".env").to_string()
             }
             EnvSource::System => "system".to_string(),
             EnvSource::Shell => "shell".to_string(),
@@ -208,15 +207,10 @@ impl EnvManager {
         let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read {}", path.display()))?;
 
-        let name = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or(".env")
-            .to_string();
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or(".env").to_string();
 
-        let is_template = name.contains("example")
-            || name.contains("sample")
-            || name.contains("template");
+        let is_template =
+            name.contains("example") || name.contains("sample") || name.contains("template");
 
         // Count non-empty, non-comment lines
         let variable_count = content
@@ -229,13 +223,7 @@ impl EnvManager {
 
         let is_active = self.active_file.as_ref() == Some(&path.to_path_buf());
 
-        Ok(EnvFile {
-            name,
-            path: path.to_path_buf(),
-            variable_count,
-            is_template,
-            is_active,
-        })
+        Ok(EnvFile { name, path: path.to_path_buf(), variable_count, is_template, is_active })
     }
 
     /// Get all detected .env files.
@@ -305,10 +293,7 @@ impl EnvManager {
 
     /// Get the name of the active environment.
     pub fn active_env_name(&self) -> Option<&str> {
-        self.env_files
-            .iter()
-            .find(|f| f.is_active)
-            .map(|f| f.name.as_str())
+        self.env_files.iter().find(|f| f.is_active).map(|f| f.name.as_str())
     }
 
     /// Get all environment variables with their sources.
@@ -410,11 +395,7 @@ impl EnvManager {
             }
         }
 
-        Ok(EnvDiff {
-            only_in_first,
-            only_in_second,
-            different,
-        })
+        Ok(EnvDiff { only_in_first, only_in_second, different })
     }
 }
 
@@ -455,16 +436,8 @@ mod tests {
     fn test_env_manager_scan() {
         let temp = TempDir::new().unwrap();
 
-        create_test_env_file(
-            temp.path(),
-            ".env",
-            "DB_HOST=localhost\nDB_PORT=5432\n",
-        );
-        create_test_env_file(
-            temp.path(),
-            ".env.development",
-            "NODE_ENV=development\nDEBUG=true\n",
-        );
+        create_test_env_file(temp.path(), ".env", "DB_HOST=localhost\nDB_PORT=5432\n");
+        create_test_env_file(temp.path(), ".env.development", "NODE_ENV=development\nDEBUG=true\n");
 
         let mut manager = EnvManager::new(temp.path());
         manager.scan().unwrap();

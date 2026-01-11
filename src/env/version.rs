@@ -4,9 +4,9 @@
 //! and compares them with currently installed versions.
 
 use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::fs;
 
 use anyhow::Result;
 
@@ -88,13 +88,7 @@ impl RuntimeVersion {
     /// Create a new runtime version with detected current version.
     pub fn new(runtime: RuntimeType) -> Self {
         let current = detect_current_version(runtime);
-        Self {
-            runtime,
-            required: None,
-            source: None,
-            current,
-            is_compatible: None,
-        }
+        Self { runtime, required: None, source: None, current, is_compatible: None }
     }
 
     /// Set the required version.
@@ -134,10 +128,7 @@ pub struct VersionManager {
 impl VersionManager {
     /// Create a new version manager for the given project root.
     pub fn new(root: impl AsRef<Path>) -> Self {
-        Self {
-            root: root.as_ref().to_path_buf(),
-            versions: HashMap::new(),
-        }
+        Self { root: root.as_ref().to_path_buf(), versions: HashMap::new() }
     }
 
     /// Scan for version requirements and detect current versions.
@@ -322,7 +313,9 @@ impl VersionManager {
                 if let Ok(toml) = content.parse::<toml::Value>() {
                     if let Some(toolchain) = toml.get("toolchain") {
                         if let Some(channel) = toolchain.get("channel").and_then(|v| v.as_str()) {
-                            return Some(version.with_required(channel.to_string(), toolchain_toml));
+                            return Some(
+                                version.with_required(channel.to_string(), toolchain_toml),
+                            );
                         }
                     }
                 }
@@ -349,7 +342,9 @@ impl VersionManager {
                         if let Some(rust_version) =
                             package.get("rust-version").and_then(|v| v.as_str())
                         {
-                            return Some(version.with_required(rust_version.to_string(), cargo_toml));
+                            return Some(
+                                version.with_required(rust_version.to_string(), cargo_toml),
+                            );
                         }
                     }
                 }
@@ -504,9 +499,7 @@ fn parse_version_output(runtime: RuntimeType, output: &str) -> Option<String> {
         }
         RuntimeType::Python => {
             // "Python 3.12.0" -> "3.12.0"
-            first_line
-                .strip_prefix("Python ")
-                .map(|s| s.trim().to_string())
+            first_line.strip_prefix("Python ").map(|s| s.trim().to_string())
         }
         RuntimeType::Rust => {
             // "rustc 1.82.0 (f6e511eec 2024-10-15)" -> "1.82.0"
@@ -632,14 +625,8 @@ fn check_semver_range(required: &str, current: &str) -> bool {
     let is_caret = required.starts_with('^');
     let version = required.trim_start_matches('^').trim_start_matches('~');
 
-    let req_parts: Vec<u32> = version
-        .split('.')
-        .filter_map(|s| s.parse().ok())
-        .collect();
-    let cur_parts: Vec<u32> = current
-        .split('.')
-        .filter_map(|s| s.parse().ok())
-        .collect();
+    let req_parts: Vec<u32> = version.split('.').filter_map(|s| s.parse().ok()).collect();
+    let cur_parts: Vec<u32> = current.split('.').filter_map(|s| s.parse().ok()).collect();
 
     if req_parts.is_empty() || cur_parts.is_empty() {
         return true;
@@ -720,11 +707,7 @@ mod tests {
     #[test]
     fn test_node_version_from_package_json() {
         let temp = TempDir::new().unwrap();
-        create_test_file(
-            temp.path(),
-            "package.json",
-            r#"{"engines": {"node": ">=18.0.0"}}"#,
-        );
+        create_test_file(temp.path(), "package.json", r#"{"engines": {"node": ">=18.0.0"}}"#);
 
         let mut manager = VersionManager::new(temp.path());
         manager.scan().unwrap();
@@ -932,13 +915,7 @@ ruby 3.3.0
 
     #[test]
     fn test_extract_quoted_string() {
-        assert_eq!(
-            extract_quoted_string(r#"java version "21.0.1""#),
-            Some("21.0.1".to_string())
-        );
-        assert_eq!(
-            extract_quoted_string("ruby '3.3.0'"),
-            Some("3.3.0".to_string())
-        );
+        assert_eq!(extract_quoted_string(r#"java version "21.0.1""#), Some("21.0.1".to_string()));
+        assert_eq!(extract_quoted_string("ruby '3.3.0'"), Some("3.3.0".to_string()));
     }
 }
