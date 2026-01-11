@@ -84,7 +84,7 @@ futures = "0.3"
 async-trait = "0.1"
 
 # Plugin System (WASM)
-wasmtime = { version = "27", optional = true }
+wasmtime = { version = "40", optional = true }
 urlencoding = "2.1.3"
 ctrlc = "3.5.1"
 
