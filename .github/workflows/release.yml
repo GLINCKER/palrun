@@ -170,15 +170,18 @@ jobs:
 
       - name: Publish
         working-directory: npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           VERSION=${{ needs.release.outputs.version }}
           npm version $VERSION --no-git-tag-version --allow-same-version
           if [[ "$VERSION" == *-* ]]; then
             TAG=$(echo "$VERSION" | sed 's/.*-\([a-zA-Z]*\).*/\1/')
-            npm publish --access public --tag "$TAG"
+            npm publish --access public --tag "$TAG" --provenance
           else
-            npm publish --access public
+            npm publish --access public --provenance
           fi
+        continue-on-error: true  # Don't block release if npm fails
 
   publish-crates:
     name: crates.io
@@ -192,7 +195,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Publish
-        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} --allow-dirty
         continue-on-error: true
 
   update-homebrew:
