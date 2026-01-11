@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_parse_simple_makefile() {
-        let content = r#"
+        let content = r"
 .PHONY: build test clean
 
 build:
@@ -177,7 +177,7 @@ test:
 
 clean:
 	rm -rf target
-"#;
+";
 
         let targets = parse_makefile_targets(content);
 
@@ -206,13 +206,13 @@ all: .internal
 
     #[test]
     fn test_skip_variable_assignments() {
-        let content = r#"
+        let content = r"
 CC = gcc
 CFLAGS = -Wall
 
 build:
 	$(CC) $(CFLAGS) -o app main.c
-"#;
+";
 
         let targets = parse_makefile_targets(content);
 
@@ -269,14 +269,14 @@ helper:
 
     #[test]
     fn test_extract_description() {
-        let content = r#"
+        let content = r"
 # Build the project
 build:
 	cargo build
 
 test:
 	cargo test
-"#;
+";
 
         let desc = extract_target_description(content, "build");
         assert_eq!(desc, Some("Build the project".to_string()));

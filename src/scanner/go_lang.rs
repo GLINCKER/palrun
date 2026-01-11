@@ -195,14 +195,14 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
 
         // Create go.mod
-        let go_mod_content = r#"module github.com/example/myapp
+        let go_mod_content = r"module github.com/example/myapp
 
 go 1.21
 
 require (
     github.com/gin-gonic/gin v1.9.0
 )
-"#;
+";
         fs::write(temp_dir.path().join("go.mod"), go_mod_content).unwrap();
 
         let commands = scanner.scan(temp_dir.path()).unwrap();
@@ -289,7 +289,7 @@ require (
         let temp_dir = TempDir::new().unwrap();
         let go_mod_path = temp_dir.path().join("go.mod");
 
-        let content = r#"module example.com/my-app
+        let content = r"module example.com/my-app
 
 go 1.22
 
@@ -301,7 +301,7 @@ require (
 require (
     github.com/bytedance/sonic v1.9.1 // indirect
 )
-"#;
+";
         fs::write(&go_mod_path, content).unwrap();
 
         let module_name = parse_go_mod(&go_mod_path).unwrap();

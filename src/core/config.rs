@@ -33,6 +33,10 @@ pub struct Config {
     /// Command aliases
     #[serde(default)]
     pub aliases: Vec<AliasConfig>,
+
+    /// MCP (Model Context Protocol) configuration
+    #[serde(default)]
+    pub mcp: MCPConfig,
 }
 
 /// General application settings.
@@ -382,6 +386,7 @@ impl Default for Config {
             #[cfg(feature = "git")]
             hooks: HooksConfig::default(),
             aliases: Vec::new(),
+            mcp: MCPConfig::default(),
         }
     }
 }
@@ -518,6 +523,67 @@ impl AliasConfig {
             env: Vec::new(),
             branches: Vec::new(),
         }
+    }
+}
+
+/// MCP (Model Context Protocol) configuration.
+///
+/// Configures connections to MCP servers for dynamic tool discovery.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MCPConfig {
+    /// Whether MCP is enabled
+    pub enabled: bool,
+
+    /// MCP servers to connect to
+    #[serde(default)]
+    pub servers: Vec<MCPServerEntry>,
+}
+
+/// Configuration for a single MCP server.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MCPServerEntry {
+    /// Server name (unique identifier)
+    pub name: String,
+
+    /// Command to run the server
+    pub command: String,
+
+    /// Command arguments
+    #[serde(default)]
+    pub args: Vec<String>,
+
+    /// Environment variables
+    #[serde(default)]
+    pub env: std::collections::HashMap<String, String>,
+
+    /// Working directory (optional)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+}
+
+impl MCPServerEntry {
+    /// Create a new MCP server entry.
+    pub fn new(name: impl Into<String>, command: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            command: command.into(),
+            args: Vec::new(),
+            env: std::collections::HashMap::new(),
+            cwd: None,
+        }
+    }
+
+    /// Add arguments.
+    pub fn with_args(mut self, args: Vec<String>) -> Self {
+        self.args = args;
+        self
+    }
+
+    /// Add environment variables.
+    pub fn with_env(mut self, env: std::collections::HashMap<String, String>) -> Self {
+        self.env = env;
+        self
     }
 }
 

@@ -68,6 +68,7 @@
 
 pub mod app;
 pub mod core;
+pub mod init;
 pub mod scanner;
 pub mod tui;
 
@@ -75,7 +76,11 @@ pub mod tui;
 pub mod ai;
 
 #[cfg(feature = "ai")]
-pub use ai::{AIManager, AIProvider, OllamaProvider, ProjectContext};
+pub use ai::{
+    AIManager, AIProvider, Agent, AgentMessage, AgentProvider, AgentResponse, AgentState,
+    AgentStopReason, AgentTool, AgentToolCall, AgentToolResult, CompositeExecutor, MCPToolExecutor,
+    OllamaProvider, ProjectContext, ShellExecutor, ToolExecutor,
+};
 
 pub mod runbook;
 
@@ -98,6 +103,26 @@ pub mod plugin;
 pub use plugin::{
     PluginCommand, PluginError, PluginHost, PluginInfo, PluginManager, PluginManifest,
     PluginPermissions, PluginResult, PluginRuntime, PluginType,
+};
+
+pub mod integrations;
+pub use integrations::{
+    CreateIssueOptions, CreateLinearIssueOptions, GitHubActions, GitHubIssues, Issue, IssueComment,
+    IssueStats, IssuesError, Label, LinearClient, LinearError, LinearIssue, LinearLabel,
+    LinearState, LinearStats, LinearTeam, LinearUser, ListIssuesOptions, ListLinearIssuesOptions,
+    Milestone, NotificationClient, NotificationConfig, NotificationEvent, NotificationMessage,
+    NotificationType, UpdateIssueOptions, User, Workflow, WorkflowRun, WorkflowStatus,
+};
+
+pub mod mcp;
+pub use mcp::{
+    MCPClient, MCPManager, MCPServer, MCPServerConfig, MCPTool, ToolCall, ToolRegistry, ToolResult,
+};
+
+pub mod security;
+pub use security::{
+    CommandValidator, SecurityConfig, SecurityManager, ValidationError, ValidationResult,
+    ValidationSeverity,
 };
 
 // Re-export commonly used types

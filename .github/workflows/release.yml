@@ -89,9 +89,39 @@ jobs:
           path: dist/palrun-${{ matrix.target }}.*
           if-no-files-found: error
 
+  sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-sbom
+        run: cargo install cargo-sbom
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          cargo sbom --output-format cyclone_dx_json_1_4 > sbom-cyclonedx.json
+
+      - name: Generate SPDX SBOM
+        run: |
+          cargo sbom --output-format spdx_json_2_3 > sbom-spdx.json
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            sbom-cyclonedx.json
+            sbom-spdx.json
+          if-no-files-found: error
+
   release:
     name: Create Release
-    needs: build
+    needs: [build, sbom]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -108,6 +138,7 @@ jobs:
         run: |
           mkdir -p release
           find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} release/ \;
+          cp artifacts/sbom/*.json release/
           ls -la release/
 
       - name: Generate checksums

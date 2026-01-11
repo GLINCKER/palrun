@@ -34,11 +34,7 @@ impl PluginRuntime {
         let module_bytes =
             std::fs::read(wasm_path).map_err(|e| PluginError::LoadError(e.to_string()))?;
 
-        Ok(Self {
-            name: name.to_string(),
-            module_bytes,
-            timeout_secs,
-        })
+        Ok(Self { name: name.to_string(), module_bytes, timeout_secs })
     }
 
     /// Get the plugin name.
@@ -90,11 +86,7 @@ pub trait AiProviderPlugin: Send + Sync {
     /// # Returns
     ///
     /// The generated command string.
-    fn generate_command(
-        &self,
-        prompt: &str,
-        context: &AiContext,
-    ) -> PluginResult<String>;
+    fn generate_command(&self, prompt: &str, context: &AiContext) -> PluginResult<String>;
 
     /// Explain what a command does.
     ///
@@ -106,11 +98,7 @@ pub trait AiProviderPlugin: Send + Sync {
     /// # Returns
     ///
     /// Human-readable explanation.
-    fn explain_command(
-        &self,
-        command: &str,
-        context: &AiContext,
-    ) -> PluginResult<String>;
+    fn explain_command(&self, command: &str, context: &AiContext) -> PluginResult<String>;
 
     /// Get the provider name.
     fn name(&self) -> &str;
@@ -142,9 +130,7 @@ impl Default for PluginExecutor {
 impl PluginExecutor {
     /// Create a new plugin executor.
     pub fn new() -> Self {
-        Self {
-            scanners: Vec::new(),
-        }
+        Self { scanners: Vec::new() }
     }
 
     /// Register a scanner plugin.

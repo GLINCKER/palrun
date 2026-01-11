@@ -66,11 +66,7 @@ impl PluginManager {
         // Ensure plugins directory exists
         std::fs::create_dir_all(&plugins_dir)?;
 
-        let mut manager = Self {
-            plugins_dir,
-            plugins: HashMap::new(),
-            runtimes: HashMap::new(),
-        };
+        let mut manager = Self { plugins_dir, plugins: HashMap::new(), runtimes: HashMap::new() };
 
         // Load plugin registry
         manager.load_registry()?;
@@ -104,12 +100,10 @@ impl PluginManager {
 
     /// Save the plugin registry to disk.
     fn save_registry(&self) -> PluginResult<()> {
-        let registry = PluginRegistry {
-            plugins: self.plugins.clone(),
-        };
+        let registry = PluginRegistry { plugins: self.plugins.clone() };
 
-        let content =
-            serde_json::to_string_pretty(&registry).map_err(|e| PluginError::Config(e.to_string()))?;
+        let content = serde_json::to_string_pretty(&registry)
+            .map_err(|e| PluginError::Config(e.to_string()))?;
 
         std::fs::write(self.registry_path(), content)?;
 
@@ -205,10 +199,8 @@ impl PluginManager {
 
     /// Enable a plugin.
     pub fn enable(&mut self, name: &str) -> PluginResult<()> {
-        let plugin = self
-            .plugins
-            .get_mut(name)
-            .ok_or_else(|| PluginError::NotFound(PathBuf::from(name)))?;
+        let plugin =
+            self.plugins.get_mut(name).ok_or_else(|| PluginError::NotFound(PathBuf::from(name)))?;
 
         plugin.state = PluginState::Enabled;
         plugin.last_error = None;
@@ -219,10 +211,8 @@ impl PluginManager {
 
     /// Disable a plugin.
     pub fn disable(&mut self, name: &str) -> PluginResult<()> {
-        let plugin = self
-            .plugins
-            .get_mut(name)
-            .ok_or_else(|| PluginError::NotFound(PathBuf::from(name)))?;
+        let plugin =
+            self.plugins.get_mut(name).ok_or_else(|| PluginError::NotFound(PathBuf::from(name)))?;
 
         plugin.state = PluginState::Disabled;
         self.runtimes.remove(name);
@@ -243,16 +233,12 @@ impl PluginManager {
 
     /// List plugins by type.
     pub fn list_by_type(&self, plugin_type: PluginType) -> impl Iterator<Item = &InstalledPlugin> {
-        self.plugins
-            .values()
-            .filter(move |p| p.manifest.plugin.plugin_type == plugin_type)
+        self.plugins.values().filter(move |p| p.manifest.plugin.plugin_type == plugin_type)
     }
 
     /// List enabled plugins.
     pub fn list_enabled(&self) -> impl Iterator<Item = &InstalledPlugin> {
-        self.plugins
-            .values()
-            .filter(|p| p.state == PluginState::Enabled)
+        self.plugins.values().filter(|p| p.state == PluginState::Enabled)
     }
 
     /// Get the number of installed plugins.
@@ -262,10 +248,7 @@ impl PluginManager {
 
     /// Get the number of enabled plugins.
     pub fn count_enabled(&self) -> usize {
-        self.plugins
-            .values()
-            .filter(|p| p.state == PluginState::Enabled)
-            .count()
+        self.plugins.values().filter(|p| p.state == PluginState::Enabled).count()
     }
 }
 
@@ -348,26 +331,17 @@ api_version = "0.1.0"
         manager.install_from_file(&wasm_path).unwrap();
 
         // Initially enabled
-        assert_eq!(
-            manager.get("test-plugin").unwrap().state,
-            PluginState::Enabled
-        );
+        assert_eq!(manager.get("test-plugin").unwrap().state, PluginState::Enabled);
         assert_eq!(manager.count_enabled(), 1);
 
         // Disable
         manager.disable("test-plugin").unwrap();
-        assert_eq!(
-            manager.get("test-plugin").unwrap().state,
-            PluginState::Disabled
-        );
+        assert_eq!(manager.get("test-plugin").unwrap().state, PluginState::Disabled);
         assert_eq!(manager.count_enabled(), 0);
 
         // Re-enable
         manager.enable("test-plugin").unwrap();
-        assert_eq!(
-            manager.get("test-plugin").unwrap().state,
-            PluginState::Enabled
-        );
+        assert_eq!(manager.get("test-plugin").unwrap().state, PluginState::Enabled);
     }
 
     #[test]

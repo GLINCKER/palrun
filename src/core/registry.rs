@@ -389,8 +389,7 @@ mod tests {
         registry.add(Command::new("deploy", "npm run deploy").with_branch_pattern("main"));
 
         // Command only on feature branches
-        registry
-            .add(Command::new("dev", "npm run dev").with_branch_pattern("feature/*"));
+        registry.add(Command::new("dev", "npm run dev").with_branch_pattern("feature/*"));
 
         // On main: should get test and deploy
         let main_cmds = registry.get_by_branch(Some("main"));

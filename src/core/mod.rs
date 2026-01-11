@@ -13,9 +13,14 @@ mod context;
 mod executor;
 mod filter;
 mod history;
+mod network;
 mod parallel;
 mod registry;
+mod retry;
 
+pub use analytics::{
+    Analytics, AnalyticsReport, CommandStats, Insight, InsightCategory, TimePeriod,
+};
 pub use background::{
     send_notification, BackgroundEvent, BackgroundId, BackgroundManager, BackgroundProcess,
     BackgroundStatus,
@@ -33,14 +38,15 @@ pub use config::Config;
 pub use config::HooksConfig;
 pub use context::{CommandContext, ContextFilter, LocationIndicator};
 pub use executor::{ExecutionResult, Executor};
-pub use parallel::{
-    ParallelExecutor, ParallelProcess, ParallelResult, ProcessEvent, ProcessId, ProcessOutput,
-    ProcessStatus,
-};
 pub use filter::{
     filter_by_source, filter_by_tag, filter_by_workspace, get_source_types, get_tags,
     get_workspaces, ParsedQuery,
 };
 pub use history::{CommandHistory, HistoryEntry, HistoryManager};
+pub use network::{NetworkChecker, NetworkStatus, ServiceChecker};
+pub use parallel::{
+    ParallelExecutor, ParallelProcess, ParallelResult, ProcessEvent, ProcessId, ProcessOutput,
+    ProcessStatus,
+};
 pub use registry::CommandRegistry;
-pub use analytics::{Analytics, AnalyticsReport, CommandStats, Insight, InsightCategory, TimePeriod};
+pub use retry::{retry, CircuitBreaker, CircuitState, RetryConfig, RetryResult};

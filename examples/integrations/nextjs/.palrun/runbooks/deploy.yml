@@ -1,0 +1,44 @@
+name: Deploy Next.js App
+description: Build and deploy Next.js application
+version: 1.0.0
+
+variables:
+  environment:
+    type: select
+    prompt: "Select environment"
+    options:
+      - development
+      - staging
+      - production
+    required: true
+
+steps:
+  - name: Install dependencies
+    command: npm install
+    description: Install all dependencies
+
+  - name: Run linter
+    command: npm run lint
+    description: Check code quality
+
+  - name: Run type check
+    command: npm run type-check
+    description: TypeScript type checking
+    optional: true
+
+  - name: Run tests
+    command: npm test
+    description: Run test suite
+    optional: true
+
+  - name: Build application
+    command: npm run build
+    description: Build Next.js app for {{environment}}
+    env:
+      NODE_ENV: "{{environment}}"
+
+  - name: Deploy
+    command: npm run deploy:{{environment}}
+    description: Deploy to {{environment}}
+    confirm: true
+

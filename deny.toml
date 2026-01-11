@@ -1,0 +1,95 @@
+# cargo-deny configuration
+# https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+# Dependency graph targets (all platforms we support)
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+]
+
+[advisories]
+# The database of security advisories
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+
+# How to handle yanked crates
+yanked = "warn"
+
+# Ignore specific advisories (with justification)
+ignore = []
+
+[licenses]
+# Confidence threshold for license detection
+confidence-threshold = 0.93
+
+# List of allowed licenses
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "0BSD",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "MPL-2.0",
+    "CC0-1.0",
+    "Unlicense",
+]
+
+# Allow dual-licensed crates under MIT OR Apache-2.0
+copyleft = "warn"
+
+# Crates with unknown licenses
+unlicensed = "deny"
+
+# Private crates (not published)
+private = { ignore = true }
+
+[[licenses.clarify]]
+name = "ring"
+expression = "MIT AND ISC AND OpenSSL"
+license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
+
+[[licenses.clarify]]
+name = "webpki"
+expression = "ISC"
+license-files = [{ path = "LICENSE", hash = 0x001c7e6c }]
+
+[bans]
+# Lint level for multiple versions of the same crate
+multiple-versions = "warn"
+
+# Lint level for crates that are not in use
+wildcards = "allow"
+
+# Allow specific duplicate crates (with justification)
+skip = []
+
+# Deny specific crates entirely
+deny = [
+    # Security concerns
+    { name = "openssl" }, # Prefer rustls for TLS
+]
+
+# Allow specific crates
+allow = []
+
+[sources]
+# Only allow crates from crates.io
+unknown-registry = "deny"
+
+# Only allow crates from the git repository in Cargo.toml
+unknown-git = "warn"
+
+# Allowed git repositories
+allow-git = []
+
+# Allowed registries
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

@@ -1,0 +1,45 @@
+name: Development Environment Setup
+description: Set up local development environment from scratch
+version: 1.0.0
+
+variables:
+  seed_database:
+    type: boolean
+    prompt: "Seed database with sample data?"
+    default: true
+
+steps:
+  - name: Install dependencies
+    command: npm install
+    description: Install all project dependencies
+
+  - name: Copy environment file
+    command: cp .env.example .env
+    description: Create local environment file
+    optional: true
+
+  - name: Start Docker services
+    command: docker compose up -d
+    description: Start database and other services
+
+  - name: Wait for services
+    command: sleep 5
+    description: Wait for services to be ready
+
+  - name: Run database migrations
+    command: npm run db:migrate
+    description: Set up database schema
+
+  - name: Seed database
+    command: npm run db:seed
+    description: Populate database with sample data
+    condition: "seed_database"
+
+  - name: Build application
+    command: npm run build
+    description: Build the application
+
+  - name: Start development server
+    command: npm run dev
+    description: Start development server
+

@@ -52,19 +52,19 @@ impl Theme {
     pub fn default_theme() -> Self {
         Self {
             name: "default".to_string(),
-            primary: Color::Rgb(99, 102, 241),    // Indigo
-            secondary: Color::Rgb(16, 185, 129),  // Emerald
-            accent: Color::Rgb(251, 146, 60),     // Orange
-            highlight: Color::Rgb(250, 204, 21),  // Yellow
+            primary: Color::Rgb(99, 102, 241),   // Indigo
+            secondary: Color::Rgb(16, 185, 129), // Emerald
+            accent: Color::Rgb(251, 146, 60),    // Orange
+            highlight: Color::Rgb(250, 204, 21), // Yellow
             text: Color::White,
-            text_dim: Color::Rgb(156, 163, 175),  // Gray-400
+            text_dim: Color::Rgb(156, 163, 175),   // Gray-400
             text_muted: Color::Rgb(107, 114, 128), // Gray-500
             background: Color::Reset,
-            selected_bg: Color::Rgb(55, 65, 81),  // Gray-700
-            border: Color::Rgb(75, 85, 99),       // Gray-600
-            success: Color::Rgb(34, 197, 94),     // Green
-            warning: Color::Rgb(234, 179, 8),     // Yellow
-            error: Color::Rgb(239, 68, 68),       // Red
+            selected_bg: Color::Rgb(55, 65, 81), // Gray-700
+            border: Color::Rgb(75, 85, 99),      // Gray-600
+            success: Color::Rgb(34, 197, 94),    // Green
+            warning: Color::Rgb(234, 179, 8),    // Yellow
+            error: Color::Rgb(239, 68, 68),      // Red
         }
     }
 
@@ -132,19 +132,19 @@ impl Theme {
     pub fn solarized_light() -> Self {
         Self {
             name: "solarized-light".to_string(),
-            primary: Color::Rgb(38, 139, 210),    // Blue
-            secondary: Color::Rgb(133, 153, 0),   // Green
-            accent: Color::Rgb(203, 75, 22),      // Orange
-            highlight: Color::Rgb(181, 137, 0),   // Yellow
-            text: Color::Rgb(88, 110, 117),       // Base01
-            text_dim: Color::Rgb(101, 123, 131),  // Base00
-            text_muted: Color::Rgb(147, 161, 161), // Base1
-            background: Color::Rgb(253, 246, 227), // Base3
+            primary: Color::Rgb(38, 139, 210),      // Blue
+            secondary: Color::Rgb(133, 153, 0),     // Green
+            accent: Color::Rgb(203, 75, 22),        // Orange
+            highlight: Color::Rgb(181, 137, 0),     // Yellow
+            text: Color::Rgb(88, 110, 117),         // Base01
+            text_dim: Color::Rgb(101, 123, 131),    // Base00
+            text_muted: Color::Rgb(147, 161, 161),  // Base1
+            background: Color::Rgb(253, 246, 227),  // Base3
             selected_bg: Color::Rgb(238, 232, 213), // Base2
-            border: Color::Rgb(147, 161, 161),    // Base1
-            success: Color::Rgb(133, 153, 0),     // Green
-            warning: Color::Rgb(181, 137, 0),     // Yellow
-            error: Color::Rgb(220, 50, 47),       // Red
+            border: Color::Rgb(147, 161, 161),      // Base1
+            success: Color::Rgb(133, 153, 0),       // Green
+            warning: Color::Rgb(181, 137, 0),       // Yellow
+            error: Color::Rgb(220, 50, 47),         // Red
         }
     }
 
@@ -152,19 +152,19 @@ impl Theme {
     pub fn catppuccin_mocha() -> Self {
         Self {
             name: "catppuccin-mocha".to_string(),
-            primary: Color::Rgb(137, 180, 250),   // Blue
-            secondary: Color::Rgb(166, 227, 161), // Green
-            accent: Color::Rgb(250, 179, 135),    // Peach
-            highlight: Color::Rgb(249, 226, 175), // Yellow
-            text: Color::Rgb(205, 214, 244),      // Text
-            text_dim: Color::Rgb(166, 173, 200),  // Subtext1
+            primary: Color::Rgb(137, 180, 250),    // Blue
+            secondary: Color::Rgb(166, 227, 161),  // Green
+            accent: Color::Rgb(250, 179, 135),     // Peach
+            highlight: Color::Rgb(249, 226, 175),  // Yellow
+            text: Color::Rgb(205, 214, 244),       // Text
+            text_dim: Color::Rgb(166, 173, 200),   // Subtext1
             text_muted: Color::Rgb(127, 132, 156), // Overlay1
-            background: Color::Rgb(30, 30, 46),   // Base
-            selected_bg: Color::Rgb(49, 50, 68),  // Surface0
-            border: Color::Rgb(69, 71, 90),       // Surface1
-            success: Color::Rgb(166, 227, 161),   // Green
-            warning: Color::Rgb(249, 226, 175),   // Yellow
-            error: Color::Rgb(243, 139, 168),     // Red
+            background: Color::Rgb(30, 30, 46),    // Base
+            selected_bg: Color::Rgb(49, 50, 68),   // Surface0
+            border: Color::Rgb(69, 71, 90),        // Surface1
+            success: Color::Rgb(166, 227, 161),    // Green
+            warning: Color::Rgb(249, 226, 175),    // Yellow
+            error: Color::Rgb(243, 139, 168),      // Red
         }
     }
 
@@ -172,19 +172,19 @@ impl Theme {
     pub fn catppuccin_latte() -> Self {
         Self {
             name: "catppuccin-latte".to_string(),
-            primary: Color::Rgb(30, 102, 245),    // Blue
-            secondary: Color::Rgb(64, 160, 43),   // Green
-            accent: Color::Rgb(254, 100, 11),     // Peach
-            highlight: Color::Rgb(223, 142, 29),  // Yellow
-            text: Color::Rgb(76, 79, 105),        // Text
-            text_dim: Color::Rgb(92, 95, 119),    // Subtext1
-            text_muted: Color::Rgb(140, 143, 161), // Overlay1
-            background: Color::Rgb(239, 241, 245), // Base
+            primary: Color::Rgb(30, 102, 245),      // Blue
+            secondary: Color::Rgb(64, 160, 43),     // Green
+            accent: Color::Rgb(254, 100, 11),       // Peach
+            highlight: Color::Rgb(223, 142, 29),    // Yellow
+            text: Color::Rgb(76, 79, 105),          // Text
+            text_dim: Color::Rgb(92, 95, 119),      // Subtext1
+            text_muted: Color::Rgb(140, 143, 161),  // Overlay1
+            background: Color::Rgb(239, 241, 245),  // Base
             selected_bg: Color::Rgb(220, 224, 232), // Surface0
-            border: Color::Rgb(188, 192, 204),    // Surface1
-            success: Color::Rgb(64, 160, 43),     // Green
-            warning: Color::Rgb(223, 142, 29),    // Yellow
-            error: Color::Rgb(210, 15, 57),       // Red
+            border: Color::Rgb(188, 192, 204),      // Surface1
+            success: Color::Rgb(64, 160, 43),       // Green
+            warning: Color::Rgb(223, 142, 29),      // Yellow
+            error: Color::Rgb(210, 15, 57),         // Red
         }
     }
 
@@ -212,19 +212,19 @@ impl Theme {
     pub fn gruvbox_dark() -> Self {
         Self {
             name: "gruvbox-dark".to_string(),
-            primary: Color::Rgb(131, 165, 152),   // Aqua
-            secondary: Color::Rgb(184, 187, 38),  // Green
-            accent: Color::Rgb(254, 128, 25),     // Orange
-            highlight: Color::Rgb(250, 189, 47),  // Yellow
-            text: Color::Rgb(235, 219, 178),      // Foreground
-            text_dim: Color::Rgb(168, 153, 132),  // Gray
+            primary: Color::Rgb(131, 165, 152),    // Aqua
+            secondary: Color::Rgb(184, 187, 38),   // Green
+            accent: Color::Rgb(254, 128, 25),      // Orange
+            highlight: Color::Rgb(250, 189, 47),   // Yellow
+            text: Color::Rgb(235, 219, 178),       // Foreground
+            text_dim: Color::Rgb(168, 153, 132),   // Gray
             text_muted: Color::Rgb(146, 131, 116), // Dark Gray
-            background: Color::Rgb(40, 40, 40),   // Background
-            selected_bg: Color::Rgb(60, 56, 54),  // BG1
-            border: Color::Rgb(80, 73, 69),       // BG2
-            success: Color::Rgb(184, 187, 38),    // Green
-            warning: Color::Rgb(250, 189, 47),    // Yellow
-            error: Color::Rgb(251, 73, 52),       // Red
+            background: Color::Rgb(40, 40, 40),    // Background
+            selected_bg: Color::Rgb(60, 56, 54),   // BG1
+            border: Color::Rgb(80, 73, 69),        // BG2
+            success: Color::Rgb(184, 187, 38),     // Green
+            warning: Color::Rgb(250, 189, 47),     // Yellow
+            error: Color::Rgb(251, 73, 52),        // Red
         }
     }
 
@@ -252,19 +252,19 @@ impl Theme {
     pub fn high_contrast() -> Self {
         Self {
             name: "high-contrast".to_string(),
-            primary: Color::Cyan,                  // Bright cyan
-            secondary: Color::Green,               // Bright green
-            accent: Color::Yellow,                 // Bright yellow
-            highlight: Color::Yellow,              // Bright yellow
-            text: Color::White,                    // Pure white
-            text_dim: Color::LightCyan,            // Light cyan
-            text_muted: Color::Gray,               // Gray
-            background: Color::Black,              // Pure black
-            selected_bg: Color::Blue,              // High contrast selection
-            border: Color::White,                  // White borders
-            success: Color::LightGreen,            // Bright green
-            warning: Color::LightYellow,           // Bright yellow
-            error: Color::LightRed,                // Bright red
+            primary: Color::Cyan,        // Bright cyan
+            secondary: Color::Green,     // Bright green
+            accent: Color::Yellow,       // Bright yellow
+            highlight: Color::Yellow,    // Bright yellow
+            text: Color::White,          // Pure white
+            text_dim: Color::LightCyan,  // Light cyan
+            text_muted: Color::Gray,     // Gray
+            background: Color::Black,    // Pure black
+            selected_bg: Color::Blue,    // High contrast selection
+            border: Color::White,        // White borders
+            success: Color::LightGreen,  // Bright green
+            warning: Color::LightYellow, // Bright yellow
+            error: Color::LightRed,      // Bright red
         }
     }
 
@@ -276,7 +276,9 @@ impl Theme {
             "nord" => Some(Self::nord()),
             "solarized-dark" | "solarized_dark" => Some(Self::solarized_dark()),
             "solarized-light" | "solarized_light" => Some(Self::solarized_light()),
-            "catppuccin-mocha" | "catppuccin_mocha" | "catppuccin" => Some(Self::catppuccin_mocha()),
+            "catppuccin-mocha" | "catppuccin_mocha" | "catppuccin" => {
+                Some(Self::catppuccin_mocha())
+            }
             "catppuccin-latte" | "catppuccin_latte" => Some(Self::catppuccin_latte()),
             "tokyo-night" | "tokyo_night" => Some(Self::tokyo_night()),
             "gruvbox-dark" | "gruvbox_dark" | "gruvbox" => Some(Self::gruvbox_dark()),
@@ -360,7 +362,8 @@ mod tests {
     #[test]
     fn test_all_builtin_themes_valid() {
         for name in Theme::available_themes() {
-            let theme = Theme::by_name(name).unwrap_or_else(|| panic!("Theme {} should exist", name));
+            let theme =
+                Theme::by_name(name).unwrap_or_else(|| panic!("Theme {} should exist", name));
             assert!(!theme.name.is_empty());
         }
     }

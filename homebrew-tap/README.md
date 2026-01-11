@@ -2,11 +2,13 @@
 
 This is the official Homebrew tap for [Palrun](https://github.com/GLINCKER/palrun) - an AI command palette for your terminal.
 
+> **Repository Setup:** This directory should be published as a separate repository named `homebrew-tap` at `github.com/GLINCKER/homebrew-tap`
+
 ## Installation
 
 ```bash
-# Add the tap
-brew tap GLINCKER/palrun
+# Add the tap (the homebrew- prefix is handled automatically)
+brew tap GLINCKER/tap
 
 # Install palrun
 brew install palrun
@@ -15,8 +17,10 @@ brew install palrun
 Or install directly without adding the tap:
 
 ```bash
-brew install GLINCKER/palrun/palrun
+brew install GLINCKER/tap/palrun
 ```
+
+> **Note:** The `homebrew-` prefix in the repository name (`homebrew-tap`) is required by Homebrew but omitted in commands.
 
 ## Usage
 
@@ -62,7 +66,7 @@ brew upgrade palrun
 
 ```bash
 brew uninstall palrun
-brew untap GLINCKER/palrun
+brew untap GLINCKER/tap
 ```
 
 ## Issues

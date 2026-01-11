@@ -106,7 +106,8 @@ impl CommandContext {
         // Check if both are in the project
         if cmd_dir.starts_with(&root) && cwd.starts_with(&root) {
             // Calculate how many directories apart they are
-            let cmd_depth = cmd_dir.strip_prefix(&root).map(|p| p.components().count()).unwrap_or(0);
+            let cmd_depth =
+                cmd_dir.strip_prefix(&root).map(|p| p.components().count()).unwrap_or(0);
             let cwd_depth = cwd.strip_prefix(&root).map(|p| p.components().count()).unwrap_or(0);
             let distance = cmd_depth.abs_diff(cwd_depth);
             return 40_u32.saturating_sub(distance as u32 * 5).max(20);
@@ -199,7 +200,9 @@ impl CommandContext {
             | CommandSource::Manual
             | CommandSource::History
             | CommandSource::Favorite
-            | CommandSource::Alias => None,
+            | CommandSource::Alias
+            | CommandSource::Builtin
+            | CommandSource::Mcp { .. } => None,
         }
     }
 
@@ -299,7 +302,7 @@ mod tests {
         let cmd = create_command_with_dir("test", "/project/packages/app/src");
         // Subdirectory of cwd should score 65-70
         let score = ctx.proximity_score(&cmd);
-        assert!(score >= 60 && score <= 70, "Score was {score}");
+        assert!((60..=70).contains(&score), "Score was {score}");
     }
 
     #[test]
@@ -308,7 +311,7 @@ mod tests {
         let cmd = create_command_with_dir("test", "/project/packages/lib");
         // Sibling directory should score 30-50
         let score = ctx.proximity_score(&cmd);
-        assert!(score >= 20 && score <= 50, "Score was {score}");
+        assert!((20..=50).contains(&score), "Score was {score}");
     }
 
     #[test]

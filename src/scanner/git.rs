@@ -52,35 +52,32 @@ impl Scanner for GitScanner {
             git_command("git log", "git log --oneline -20", "Show recent commit history"),
             git_command("git diff", "git diff", "Show unstaged changes"),
             git_command("git diff staged", "git diff --staged", "Show staged changes"),
-
             // Basic Operations
             git_command("git pull", "git pull", "Fetch and integrate with remote"),
             git_command("git push", "git push", "Push commits to remote"),
             git_command("git fetch", "git fetch --all", "Download objects from remote"),
-
             // Staging
             git_command("git add all", "git add -A", "Stage all changes"),
             git_command("git add interactive", "git add -p", "Interactively stage changes"),
             git_command("git reset", "git reset", "Unstage all staged changes"),
-
             // Stash
             git_command("git stash", "git stash", "Stash current changes"),
             git_command("git stash pop", "git stash pop", "Apply and remove latest stash"),
             git_command("git stash list", "git stash list", "List all stashes"),
             git_command("git stash drop", "git stash drop", "Remove latest stash"),
-
             // Branches
             git_command("git branch list", "git branch -a", "List all branches"),
-            git_command("git branch current", "git branch --show-current", "Show current branch name"),
-
+            git_command(
+                "git branch current",
+                "git branch --show-current",
+                "Show current branch name",
+            ),
             // Commit (basic - for now without interactive input)
             git_command("git commit", "git commit", "Create a commit (opens editor)"),
             git_command("git commit amend", "git commit --amend", "Amend the last commit"),
-
             // Cleanup
             git_command("git clean", "git clean -fd", "Remove untracked files and directories"),
             git_command("git gc", "git gc", "Cleanup and optimize repository"),
-
             // Remote
             git_command("git remote", "git remote -v", "Show remote repositories"),
         ];

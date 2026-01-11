@@ -4,14 +4,15 @@ updates:
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 0
+    open-pull-requests-limit: 10
     commit-message:
-      prefix: "deps"
+      prefix: "deps(rust)"
     labels:
       - "dependencies"
       - "rust"
+      - "security"
     groups:
       rust-dependencies:
         patterns:
@@ -29,9 +30,9 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 0
+    open-pull-requests-limit: 5
     commit-message:
       prefix: "ci"
     labels:
@@ -41,3 +42,16 @@ updates:
       github-actions:
         patterns:
           - "*"
+
+  # npm (wrapper package)
+  - package-ecosystem: "npm"
+    directory: "/npm"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(npm)"
+    labels:
+      - "dependencies"
+      - "npm"

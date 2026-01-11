@@ -137,17 +137,69 @@ We aim for high test coverage. Please add tests for new features.
 
 ## Commit Messages
 
-Follow conventional commits:
+We use [Conventional Commits](https://www.conventionalcommits.org/) and enforce them via CI. Your commits will be linted automatically on pull requests.
 
-- `feat:` New feature
-- `fix:` Bug fix
-- `docs:` Documentation changes
-- `style:` Code style changes (formatting)
-- `refactor:` Code refactoring
-- `test:` Adding or updating tests
-- `chore:` Maintenance tasks
+### Format
 
-Example: `feat: add support for Poetry scanner`
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Types
+
+| Type | Description |
+|------|-------------|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `docs` | Documentation only changes |
+| `style` | Code style changes (formatting, whitespace) |
+| `refactor` | Code change that neither fixes a bug nor adds a feature |
+| `perf` | Performance improvement |
+| `test` | Adding or updating tests |
+| `build` | Build system or external dependencies |
+| `ci` | CI configuration changes |
+| `chore` | Other changes that don't modify src or test files |
+| `revert` | Reverts a previous commit |
+| `security` | Security-related changes |
+
+### Scopes (optional)
+
+`ai`, `cli`, `core`, `tui`, `scanner`, `runbook`, `plugin`, `mcp`, `security`, `config`, `git`, `env`, `deps`, `ci`, `docs`, `release`
+
+### Examples
+
+```bash
+feat(scanner): add Poetry scanner for Python projects
+fix(tui): correct cursor position after paste
+docs: update installation instructions
+refactor(core): simplify command registry lookup
+test(ai): add integration tests for Claude provider
+security: add input validation for shell commands
+```
+
+### Breaking Changes
+
+Add `!` after the type/scope or include `BREAKING CHANGE:` in the footer:
+
+```bash
+feat(cli)!: rename --recursive to --deep
+```
+
+### Generating Changelog
+
+We use [git-cliff](https://git-cliff.org) for automatic changelog generation:
+
+```bash
+# Install git-cliff
+cargo install git-cliff
+
+# Generate changelog
+git cliff -o CHANGELOG.md
+```
 
 ## Release Process
 
