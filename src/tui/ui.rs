@@ -48,7 +48,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
         .constraints([
             Constraint::Length(3), // Header with search
             Constraint::Min(8),    // Main content (list + preview)
-            Constraint::Length(2), // Help bar
+            Constraint::Length(1), // Status bar
         ])
         .split(area);
 
@@ -64,7 +64,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
     draw_header(frame, app, chunks[0]);
     draw_command_list(frame, app, content_chunks[0]);
     draw_preview_panel(frame, app, content_chunks[1]);
-    draw_help_bar(frame, app, chunks[2]);
+    draw_status_bar(frame, app, chunks[2]);
 
     // Draw overlays for special modes
     if matches!(app.mode, AppMode::PassThrough) {
@@ -320,21 +320,77 @@ fn draw_command_list(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(list, area);
 }
 
-/// Draw the preview panel (right side).
+/// Draw the preview panel (right side) with context-aware content.
 fn draw_preview_panel(frame: &mut Frame, app: &App, area: Rect) {
     let theme = &app.theme;
+    let mut lines = Vec::new();
 
-    let content = if let Some(cmd) = app.get_selected_command() {
-        let mut lines = Vec::new();
+    // --- Section 1: Location Context ---
+    // Current directory (truncated if too long)
+    let cwd_display = app.cwd.display().to_string();
+    let cwd_short = if cwd_display.len() > 35 {
+        format!("...{}", &cwd_display[cwd_display.len()-32..])
+    } else {
+        cwd_display
+    };
+    lines.push(Line::from(vec![
+        Span::styled(" ", Style::default().fg(theme.text_muted)),
+        Span::styled(&cwd_short, Style::default().fg(theme.text_dim)),
+    ]));
 
-        // Command name as header
+    // Git info (if available)
+    #[cfg(feature = "git")]
+    if let Some(ref git) = app.git_info {
+        let branch_name = git.branch.as_deref().unwrap_or("detached");
+        let mut git_spans = vec![
+            Span::styled(" ", Style::default().fg(theme.accent)),
+            Span::styled(branch_name, Style::default().fg(theme.accent)),
+        ];
+
+        // Add ahead/behind if available
+        if git.ahead > 0 || git.behind > 0 {
+            git_spans.push(Span::styled(
+                format!(" ↑{} ↓{}", git.ahead, git.behind),
+                Style::default().fg(theme.text_muted),
+            ));
+        }
+
+        // Add change counts
+        let changes = git.staged_count + git.unstaged_count + git.untracked_count;
+        if changes > 0 {
+            git_spans.push(Span::styled(
+                format!(" • {}Δ", changes),
+                Style::default().fg(theme.warning),
+            ));
+        }
+
+        lines.push(Line::from(git_spans));
+    }
+
+    // Project type indicator
+    if !app.registry.is_empty() {
+        let sources: std::collections::HashSet<_> = app.registry.get_all()
+            .iter()
+            .map(|c| c.source.short_name())
+            .collect();
+        let project_types: Vec<_> = sources.into_iter().take(3).collect();
+        if !project_types.is_empty() {
+            lines.push(Line::from(vec![
+                Span::styled(" ", Style::default().fg(theme.secondary)),
+                Span::styled(project_types.join(", "), Style::default().fg(theme.text_muted)),
+            ]));
+        }
+    }
+
+    lines.push(Line::from("")); // Divider
+
+    // --- Section 2: Selected Command or Status ---
+    if let Some(cmd) = app.get_selected_command() {
+        // Command name
         lines.push(Line::from(Span::styled(
             &cmd.name,
-            Style::default()
-                .fg(theme.text)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
         )));
-        lines.push(Line::from("")); // Spacer
 
         // Description if available
         if let Some(ref desc) = cmd.description {
@@ -342,8 +398,9 @@ fn draw_preview_panel(frame: &mut Frame, app: &App, area: Rect) {
                 desc.as_str(),
                 Style::default().fg(theme.text_dim),
             )));
-            lines.push(Line::from("")); // Spacer
         }
+
+        lines.push(Line::from("")); // Spacer
 
         // Command to execute
         lines.push(Line::from(vec![
@@ -351,60 +408,119 @@ fn draw_preview_panel(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled(&cmd.command, Style::default().fg(theme.text)),
         ]));
 
-        // Working directory if different
-        if let Some(ref dir) = cmd.working_dir {
-            lines.push(Line::from(vec![
-                Span::styled("in ", Style::default().fg(theme.text_muted)),
-                Span::styled(
-                    dir.display().to_string(),
-                    Style::default().fg(theme.text_dim),
-                ),
-            ]));
-        }
-
-        // Source info
-        lines.push(Line::from("")); // Spacer
+        // Source info (compact)
         lines.push(Line::from(vec![
-            Span::styled("Source: ", Style::default().fg(theme.text_muted)),
             Span::styled(
                 format!("{} {}", cmd.source.icon(), cmd.source.short_name()),
-                Style::default().fg(theme.text_dim),
+                Style::default().fg(theme.text_muted),
             ),
         ]));
+
+        // Execution stats from history
+        if let Some(entry) = app.get_history_entry(&cmd.id) {
+            lines.push(Line::from("")); // Spacer
+            let mut stats_spans = vec![
+                Span::styled(
+                    format!("{} runs", entry.execution_count),
+                    Style::default().fg(theme.text_dim),
+                ),
+            ];
+
+            if let Some(rate) = entry.success_rate() {
+                let rate_color = if rate >= 80.0 { theme.success } else if rate >= 50.0 { theme.warning } else { theme.error };
+                stats_spans.push(Span::styled(" • ", Style::default().fg(theme.border)));
+                stats_spans.push(Span::styled(
+                    format!("{:.0}% success", rate),
+                    Style::default().fg(rate_color),
+                ));
+            }
+
+            lines.push(Line::from(stats_spans));
+        }
 
         // Branch patterns if command is branch-specific
         if !cmd.branch_patterns.is_empty() {
             lines.push(Line::from(vec![
-                Span::styled("Branches: ", Style::default().fg(theme.text_muted)),
+                Span::styled("⎇ ", Style::default().fg(theme.accent)),
                 Span::styled(
                     cmd.branch_patterns.join(", "),
                     Style::default().fg(theme.accent),
                 ),
             ]));
         }
+    } else if let Some(ref dir_entries) = app.dir_listing {
+        // Show directory listing for shell command preview
+        let input = app.input.trim();
+        let cmd_type = if input.starts_with("cd") { "cd" } else { "ls" };
+        lines.push(Line::from(Span::styled(
+            format!(" {} - directory listing:", cmd_type),
+            Style::default().fg(theme.secondary),
+        )));
+        lines.push(Line::from(""));
 
-        lines
+        if dir_entries.is_empty() {
+            lines.push(Line::from(Span::styled(
+                "  (empty or no matches)",
+                Style::default().fg(theme.text_muted).add_modifier(Modifier::ITALIC),
+            )));
+        } else {
+            for (i, entry) in dir_entries.iter().take(12).enumerate() {
+                let (icon, color) = if entry.is_dir {
+                    ("📁 ", theme.accent)
+                } else {
+                    ("   ", theme.text_dim)
+                };
+                let style = if i == 0 && !app.input.contains(' ') {
+                    Style::default().fg(color).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(color)
+                };
+                lines.push(Line::from(vec![
+                    Span::styled(icon, style),
+                    Span::styled(&entry.name, style),
+                ]));
+            }
+            if dir_entries.len() > 12 {
+                lines.push(Line::from(Span::styled(
+                    format!("  ... and {} more", dir_entries.len() - 12),
+                    Style::default().fg(theme.text_muted),
+                )));
+            }
+        }
+
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            "Press Enter to execute",
+            Style::default().fg(theme.text_muted).add_modifier(Modifier::ITALIC),
+        )));
     } else if let Some(ref status) = app.status_message {
-        vec![Line::from(Span::styled(
+        // Show status message
+        lines.push(Line::from(Span::styled(
             status.as_str(),
             Style::default().fg(theme.warning),
-        ))]
+        )));
     } else {
-        vec![
-            Line::from(""),
-            Line::from(Span::styled(
-                "Select a command",
-                Style::default().fg(theme.text_dim),
-            )),
-            Line::from(""),
-            Line::from(Span::styled(
-                "Type to search...",
-                Style::default().fg(theme.text_muted),
-            )),
-        ]
-    };
+        // Empty state
+        lines.push(Line::from(Span::styled(
+            "Select a command",
+            Style::default().fg(theme.text_dim),
+        )));
+        lines.push(Line::from(Span::styled(
+            "or type to search",
+            Style::default().fg(theme.text_muted),
+        )));
+    }
 
-    let preview = Paragraph::new(content)
+    // --- Section 3: Tip (at bottom) ---
+    // Calculate remaining space and add tip at end
+    let tip = app.current_tip();
+    lines.push(Line::from("")); // Spacer before tip
+    lines.push(Line::from(vec![
+        Span::styled("", Style::default().fg(theme.text_muted)),
+        Span::styled(tip, Style::default().fg(theme.text_muted).add_modifier(Modifier::ITALIC)),
+    ]));
+
+    let preview = Paragraph::new(lines)
         .wrap(Wrap { trim: true })
         .block(
             Block::default()
@@ -418,53 +534,122 @@ fn draw_preview_panel(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(preview, area);
 }
 
-/// Draw the help bar at the bottom.
-fn draw_help_bar(frame: &mut Frame, app: &App, area: Rect) {
+/// Tips that rotate in the status bar
+const STATUS_TIPS: &[&str] = &[
+    "Type to search • ? help",
+    "Ctrl+P palette • . actions",
+    "Ctrl+S favorite • Ctrl+B background",
+    "Ctrl+Space multi-select",
+    "Ctrl+H history • Ctrl+G analytics",
+];
+
+/// Draw the smart status bar at the bottom.
+fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     let theme = &app.theme;
+    let mut left_spans = Vec::new();
 
-    let run_selected_label = format!("Run {}", app.selected_count());
-    let help_items: Vec<(&str, &str)> = if app.multi_select_mode {
-        // Multi-select mode help
-        vec![
-            ("Space", "Select"),
-            ("Enter", &run_selected_label),
-            ("Ctrl+A", "All"),
-            ("Esc", "Cancel"),
-        ]
-    } else {
-        // Normal mode help
-        vec![
-            ("Enter", "Run"),
-            ("↑↓", "Navigate"),
-            ("Ctrl+S", "Fav"),
-            ("?", "Help"),
-            ("Esc", "Quit"),
-        ]
-    };
+    // Git branch and status (if available)
+    #[cfg(feature = "git")]
+    if let Some(ref git) = app.git_info {
+        let branch = git.branch.as_deref().unwrap_or("detached");
+        left_spans.push(Span::styled(
+            format!(" {} ", branch),
+            Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+        ));
 
-    let mut spans = Vec::new();
-    for (i, (key, action)) in help_items.iter().enumerate() {
-        if i > 0 {
-            spans.push(Span::styled(" │ ", Style::default().fg(theme.border)));
+        // Ahead/behind indicator
+        if git.ahead > 0 || git.behind > 0 {
+            let sync = if git.ahead > 0 && git.behind > 0 {
+                format!("↑{} ↓{}", git.ahead, git.behind)
+            } else if git.ahead > 0 {
+                format!("↑{}", git.ahead)
+            } else {
+                format!("↓{}", git.behind)
+            };
+            left_spans.push(Span::styled(
+                sync,
+                Style::default().fg(theme.text_muted),
+            ));
+        } else if git.is_clean {
+            left_spans.push(Span::styled("✓", Style::default().fg(theme.success)));
         }
-        spans.push(Span::styled(
-            format!(" {} ", key),
-            Style::default()
-                .fg(theme.text)
-                .bg(theme.selected_bg)
-                .add_modifier(Modifier::BOLD),
-        ));
-        spans.push(Span::styled(
-            format!(" {} ", action),
-            Style::default().fg(theme.text_dim),
-        ));
+
+        left_spans.push(Span::styled(" │ ", Style::default().fg(theme.border)));
     }
 
-    let help = Paragraph::new(Line::from(spans))
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(theme.text_dim));
+    // Command count
+    let cmd_count = app.registry.len();
+    left_spans.push(Span::styled(
+        format!("{} commands", cmd_count),
+        Style::default().fg(theme.text_muted),
+    ));
 
-    frame.render_widget(help, area);
+    left_spans.push(Span::styled(" │ ", Style::default().fg(theme.border)));
+
+    // Current directory (truncated)
+    let cwd_display = truncate_path(&app.cwd, 20);
+    left_spans.push(Span::styled(
+        cwd_display,
+        Style::default().fg(theme.text_dim),
+    ));
+
+    // Right side: rotating tip or mode-specific help
+    let right_text = if app.multi_select_mode {
+        let count = app.selected_count();
+        format!("Space select • Enter run {} • Esc cancel", count)
+    } else {
+        STATUS_TIPS[app.tip_index % STATUS_TIPS.len()].to_string()
+    };
+
+    // Calculate available width for centering
+    let left_content = Line::from(left_spans.clone());
+    let left_width = left_content.width();
+    let right_width = right_text.len();
+    let total_width = area.width as usize;
+
+    // Create padding between left and right
+    let padding = if total_width > left_width + right_width + 2 {
+        total_width - left_width - right_width - 2
+    } else {
+        1
+    };
+
+    left_spans.push(Span::styled(
+        " ".repeat(padding),
+        Style::default(),
+    ));
+
+    left_spans.push(Span::styled(
+        right_text,
+        Style::default().fg(theme.text_muted),
+    ));
+
+    let status = Paragraph::new(Line::from(left_spans))
+        .style(Style::default().bg(theme.background));
+
+    frame.render_widget(status, area);
+}
+
+/// Truncate a path for display
+fn truncate_path(path: &std::path::Path, max_len: usize) -> String {
+    // Try to use ~ for home directory
+    let display = if let Some(home) = dirs::home_dir() {
+        if let Ok(suffix) = path.strip_prefix(&home) {
+            format!("~/{}", suffix.display())
+        } else {
+            path.display().to_string()
+        }
+    } else {
+        path.display().to_string()
+    };
+
+    if display.len() <= max_len {
+        display
+    } else {
+        // Truncate from the left with ...
+        let start = display.len() - max_len + 3;
+        format!("...{}", &display[start..])
+    }
 }
 
 /// Draw the execution result screen.

@@ -1,14 +1,43 @@
-# Palrun
+# PALRUN
 
-AI command palette for your terminal. Palrun automatically discovers your project's available commands and presents them in a fuzzy-searchable interface.
+Project-aware command palette for your terminal with AI-powered intelligence.
+
+[![CI](https://github.com/GLINCKER/palrun/actions/workflows/ci.yml/badge.svg)](https://github.com/GLINCKER/palrun/actions/workflows/ci.yml)
+[![Release](https://github.com/GLINCKER/palrun/actions/workflows/release.yml/badge.svg)](https://github.com/GLINCKER/palrun/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
+[![Crates.io](https://img.shields.io/crates/v/palrun.svg)](https://crates.io/crates/palrun)
+
+## Why Palrun?
+
+Stop memorizing commands. Palrun automatically discovers every command available in your project and presents them in a blazing-fast fuzzy-searchable interface. Whether you're working with npm, cargo, make, docker, or any of 9+ supported project types, Palrun knows what you can run.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              PALRUN v0.1.0                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   Project Scan ──► Command Discovery ──► Fuzzy Search ──► Execute          │
+│                    (9+ types)             (nucleo)         (context-aware)  │
+│                                                                             │
+│   Cargo.toml   ──► cargo build, test    ──► "bui"     ──► cargo build      │
+│   package.json ──► npm run dev, test    ──► "dev"     ──► npm run dev      │
+│   Makefile     ──► make all, clean      ──► "cle"     ──► make clean       │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 ## Features
 
-- **Project-Aware**: Automatically detects commands from 9+ project types
-- **Fuzzy Search**: Fast fuzzy matching powered by nucleo
-- **Context-Aware**: Commands sorted by proximity to your current directory
+### Core Capabilities
+
+- **Project-Aware Discovery**: Automatically detects commands from 9+ project types
+- **Fuzzy Search**: Lightning-fast fuzzy matching powered by nucleo engine
+- **Context-Aware Sorting**: Commands sorted by proximity to your current directory
 - **Cross-Platform**: Works on macOS, Linux, and Windows
-- **Shell Integration**: Keyboard shortcuts for quick access
+- **Shell Integration**: Keyboard shortcuts for instant access
+- **TUI Interface**: Beautiful terminal UI with keyboard navigation
+- **Plugin System**: Extensible architecture for custom scanners
 
 ### Supported Project Types
 
@@ -26,23 +55,35 @@ AI command palette for your terminal. Palrun automatically discovers your projec
 
 ## Installation
 
-### From Source
-
-```bash
-git clone https://github.com/yourusername/palrun.git
-cd palrun
-cargo install --path .
-```
-
 ### Using Cargo
 
 ```bash
 cargo install palrun
 ```
 
-## Usage
+### From Source
 
-### Interactive Mode (Default)
+```bash
+git clone https://github.com/GLINCKER/palrun.git
+cd palrun
+cargo install --path .
+```
+
+### Homebrew (Coming Soon)
+
+```bash
+brew install glincker/tap/palrun
+```
+
+### NPM (Coming Soon)
+
+```bash
+npm install -g palrun
+```
+
+## Quick Start
+
+### Interactive Mode
 
 Launch the command palette:
 
@@ -176,6 +217,18 @@ palrun completions zsh > ~/.zfunc/_palrun
 palrun completions fish > ~/.config/fish/completions/palrun.fish
 ```
 
+## Plugin System
+
+Palrun supports custom scanners through a plugin architecture. Example plugins are included:
+
+- **cargo-scanner**: Enhanced Cargo.toml scanning
+- **composer-scanner**: PHP Composer support
+- **gradle-scanner**: Gradle build tool support
+- **maven-scanner**: Maven build tool support
+- **poetry-scanner**: Python Poetry support
+
+See `examples/plugins/` for implementation details.
+
 ## Development
 
 ### Building
@@ -200,6 +253,35 @@ cargo run -- list
 cargo run -- scan
 ```
 
+## Roadmap
+
+- [ ] AI-powered command suggestions (Claude + local LLM)
+- [ ] Runbook system for team workflows
+- [ ] Cloud sync and team collaboration
+- [ ] Advanced search and filtering
+- [ ] Command history and analytics
+- [ ] Custom command aliases
+- [ ] Multi-project workspace support
+
+## Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+- Bug reports and fixes
+- New project type scanners
+- Performance improvements
+- Documentation updates
+
 ## License
 
-MIT
+MIT License - free for personal and commercial use.
+
+See [LICENSE](LICENSE) for details.
+
+## Support
+
+- Documentation: [GitHub Wiki](https://github.com/GLINCKER/palrun/wiki)
+- Issues: [GitHub Issues](https://github.com/GLINCKER/palrun/issues)
+- Discussions: [GitHub Discussions](https://github.com/GLINCKER/palrun/discussions)
+
+Built by [GLINCKER](https://glincker.com)

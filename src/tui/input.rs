@@ -213,8 +213,11 @@ fn handle_normal_mode(key: KeyEvent, app: &mut App) {
                     app.execute_selected_command();
                 }
             } else if !app.input.is_empty() {
-                // No command matched - offer to run as shell command (pass-through)
-                app.enter_pass_through();
+                // No command matched - try auto-execute safe shell commands first
+                if !app.try_auto_shell_command() {
+                    // Not a safe command - ask for confirmation
+                    app.enter_pass_through();
+                }
             }
         }
 

@@ -109,6 +109,16 @@ pub struct App {
 
     /// Rotating tip index for status bar
     pub tip_index: usize,
+
+    /// Directory listing for shell command preview
+    pub dir_listing: Option<Vec<DirEntry>>,
+}
+
+/// A directory entry for preview
+#[derive(Debug, Clone)]
+pub struct DirEntry {
+    pub name: String,
+    pub is_dir: bool,
 }
 
 /// Output from a command execution.
@@ -221,6 +231,7 @@ impl App {
             palette_selected: 0,
             context_menu_selected: 0,
             tip_index: 0,
+            dir_listing: None,
         })
     }
 
@@ -332,6 +343,12 @@ impl App {
             theme: Theme::default(),
             active_filters: None,
             history_manager: None,
+            pass_through_command: None,
+            palette_input: String::new(),
+            palette_selected: 0,
+            context_menu_selected: 0,
+            tip_index: 0,
+            dir_listing: None,
         }
     }
 
@@ -456,6 +473,95 @@ impl App {
         // Reset selection if it's now out of bounds
         if self.selected >= self.filtered_commands.len() {
             self.selected = self.filtered_commands.len().saturating_sub(1);
+        }
+
+        // Update directory listing for shell command preview
+        self.update_dir_listing();
+    }
+
+    /// Update directory listing for cd/ls preview.
+    fn update_dir_listing(&mut self) {
+        let input = self.input.trim();
+
+        // Check if input looks like a shell directory command
+        if input.starts_with("cd ") || input == "cd" || input.starts_with("ls") {
+            let path = if input.starts_with("cd ") {
+                let path_str = input.strip_prefix("cd ").unwrap_or("").trim();
+                self.resolve_path(path_str)
+            } else if input.starts_with("ls ") {
+                let path_str = input.strip_prefix("ls ").unwrap_or("").trim();
+                if path_str.starts_with('-') {
+                    // ls with flags, use current dir
+                    self.cwd.clone()
+                } else {
+                    self.resolve_path(path_str)
+                }
+            } else {
+                self.cwd.clone()
+            };
+
+            // Get directory listing
+            self.dir_listing = self.list_directory(&path);
+        } else {
+            self.dir_listing = None;
+        }
+    }
+
+    /// Resolve a path string to an absolute path.
+    fn resolve_path(&self, path_str: &str) -> PathBuf {
+        if path_str.is_empty() || path_str == "~" {
+            dirs::home_dir().unwrap_or_else(|| self.cwd.clone())
+        } else if path_str.starts_with("~/") {
+            dirs::home_dir()
+                .map(|h| h.join(&path_str[2..]))
+                .unwrap_or_else(|| PathBuf::from(path_str))
+        } else if path_str.starts_with('/') {
+            PathBuf::from(path_str)
+        } else {
+            self.cwd.join(path_str)
+        }
+    }
+
+    /// List directory entries.
+    fn list_directory(&self, path: &PathBuf) -> Option<Vec<DirEntry>> {
+        let dir = if path.is_dir() {
+            path.clone()
+        } else {
+            // If path is partial, use parent
+            path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| self.cwd.clone())
+        };
+
+        match std::fs::read_dir(&dir) {
+            Ok(entries) => {
+                let mut items: Vec<DirEntry> = entries
+                    .filter_map(|e| e.ok())
+                    .filter(|e| !e.file_name().to_string_lossy().starts_with('.'))
+                    .map(|e| DirEntry {
+                        name: e.file_name().to_string_lossy().to_string(),
+                        is_dir: e.file_type().map(|t| t.is_dir()).unwrap_or(false),
+                    })
+                    .collect();
+
+                // Sort: directories first, then alphabetically
+                items.sort_by(|a, b| {
+                    match (a.is_dir, b.is_dir) {
+                        (true, false) => std::cmp::Ordering::Less,
+                        (false, true) => std::cmp::Ordering::Greater,
+                        _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                    }
+                });
+
+                // Filter by partial input if there's a path fragment
+                let last_segment = path.file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("");
+                if !last_segment.is_empty() && !path.is_dir() {
+                    items.retain(|e| e.name.to_lowercase().starts_with(&last_segment.to_lowercase()));
+                }
+
+                Some(items)
+            }
+            Err(_) => None,
         }
     }
 
@@ -1110,6 +1216,57 @@ impl App {
         }
     }
 
+    /// Try to auto-execute safe shell commands without confirmation.
+    /// Returns true if command was auto-executed, false if confirmation needed.
+    pub fn try_auto_shell_command(&mut self) -> bool {
+        let input = self.input.trim().to_string();
+
+        // Safe commands that can auto-execute
+        if input.starts_with("cd ") || input == "cd" || input == "cd ~" {
+            self.handle_cd_command(&input);
+            self.input.clear();
+            self.cursor_position = 0;
+            self.dir_listing = None;
+            return true;
+        }
+
+        if input == "ls" || input.starts_with("ls ") {
+            self.execute_shell_command(&input);
+            self.input.clear();
+            self.cursor_position = 0;
+            self.dir_listing = None;
+            return true;
+        }
+
+        if input == "pwd" {
+            let pwd = self.cwd.display().to_string();
+            self.last_output = Some(CommandOutput {
+                command_name: "pwd".to_string(),
+                command_str: "pwd".to_string(),
+                stdout: format!("{}\n", pwd),
+                stderr: String::new(),
+                exit_code: Some(0),
+                success: true,
+            });
+            self.mode = AppMode::ExecutionResult;
+            self.output_scroll = 0;
+            self.input.clear();
+            self.cursor_position = 0;
+            return true;
+        }
+
+        if input == "clear" {
+            // Just clear input, no output needed
+            self.input.clear();
+            self.cursor_position = 0;
+            self.set_status("Screen cleared");
+            return true;
+        }
+
+        // Not a safe auto-execute command
+        false
+    }
+
     /// Cancel pass-through mode and return to normal.
     pub fn cancel_pass_through(&mut self) {
         self.pass_through_command = None;
@@ -1297,6 +1454,7 @@ impl Default for App {
                 palette_selected: 0,
                 context_menu_selected: 0,
                 tip_index: 0,
+            dir_listing: None,
             }
         })
     }
