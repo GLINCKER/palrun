@@ -1,0 +1,46 @@
+#!/bin/bash
+# Commit message hook: Validates conventional commit format
+# Format: type(scope): description
+
+set -e
+
+COMMIT_MSG_FILE="$1"
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Skip merge commits and fixup commits
+if echo "$COMMIT_MSG" | grep -qE '^(Merge|fixup!|squash!)'; then
+    exit 0
+fi
+
+# Conventional commit regex
+# Format: type(scope): description
+# type is required, scope is optional
+PATTERN='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|security)(\([a-z0-9_-]+\))?: .{1,100}$'
+
+# Get first line
+FIRST_LINE=$(echo "$COMMIT_MSG" | head -n1)
+
+if echo "$FIRST_LINE" | grep -qE "$PATTERN"; then
+    exit 0
+else
+    echo -e "${RED}Invalid commit message format!${NC}"
+    echo ""
+    echo "Expected format: type(scope): description"
+    echo ""
+    echo "Valid types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert, security"
+    echo "Valid scopes: ai, cli, core, tui, scanner, runbook, plugin, mcp, security, config, git, env, deps, ci, docs, release"
+    echo ""
+    echo "Examples:"
+    echo "  feat(ai): add Azure OpenAI provider"
+    echo "  fix(tui): resolve input handling issue"
+    echo "  docs: update README with new features"
+    echo ""
+    echo "Your message: $FIRST_LINE"
+    exit 1
+fi

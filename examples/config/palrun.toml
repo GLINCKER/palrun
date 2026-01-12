@@ -1,0 +1,179 @@
+# Palrun Configuration Example
+# Copy this file to ~/.config/palrun/palrun.toml or to your project root
+
+# ============================================================================
+# General Settings
+# ============================================================================
+[general]
+# Show hidden commands (those starting with _)
+show_hidden = false
+
+# Ask for confirmation before running dangerous commands
+confirm_dangerous = true
+
+# Maximum number of history entries to keep
+max_history = 1000
+
+# Default shell (optional, defaults to system shell)
+# shell = "/bin/zsh"
+
+# ============================================================================
+# UI Settings
+# ============================================================================
+[ui]
+# Color theme: default, dracula, nord, solarized-dark, gruvbox, monokai
+theme = "default"
+
+# Show command preview panel
+show_preview = true
+
+# Show source icons (npm, cargo, make, etc.)
+show_icons = true
+
+# Maximum commands to display in the list
+max_display = 20
+
+# Enable mouse support
+mouse = true
+
+# Custom color overrides (hex format)
+# [ui.custom_colors]
+# primary = "#61afef"
+# secondary = "#98c379"
+# accent = "#c678dd"
+# highlight = "#e5c07b"
+# text = "#abb2bf"
+# text_muted = "#5c6370"
+# text_dim = "#4b5263"
+# background = "#282c34"
+# surface = "#21252b"
+# border = "#3e4451"
+# success = "#98c379"
+# error = "#e06c75"
+# warning = "#e5c07b"
+
+# ============================================================================
+# Scanner Settings
+# ============================================================================
+[scanner]
+# Additional paths to scan for commands
+additional_paths = []
+
+# File patterns to ignore
+ignore_patterns = ["node_modules", "target", ".git", "build"]
+
+# Enable specific scanners
+enable_npm = true
+enable_cargo = true
+enable_make = true
+enable_composer = true
+enable_gradle = true
+enable_maven = true
+enable_poetry = true
+enable_docker = true
+enable_just = true
+enable_deno = true
+enable_bun = true
+enable_custom = true
+
+# ============================================================================
+# AI Settings (requires --features ai)
+# ============================================================================
+[ai]
+# Enable AI features
+enabled = true
+
+# Default AI provider: "ollama", "claude", "openai", "azure", "grok"
+# API keys should be in ~/.config/palrun/palrun.toml or .palrun.local.toml
+# NOT in this file (which may be committed to git)
+provider = "ollama"
+
+# Enable automatic fallback if primary provider fails
+fallback_enabled = true
+
+# Ollama settings (local LLM, no API key needed)
+[ai.ollama]
+base_url = "http://localhost:11434"
+model = "llama3.2"
+
+# NOTE: For API keys, create one of these files:
+#   - ~/.config/palrun/palrun.toml (system-wide, recommended)
+#   - .palrun.local.toml (project-local, gitignored)
+#
+# See examples/config/palrun-secrets.toml.example for the format
+
+# ============================================================================
+# Keybindings
+# ============================================================================
+[keys]
+quit = "esc"
+select = "enter"
+up = "up"
+down = "down"
+clear = "ctrl+u"
+favorite = "ctrl+s"
+background = "ctrl+b"
+multi_select = "ctrl+space"
+help = "?"
+history = "ctrl+h"
+analytics = "ctrl+g"
+palette = "ctrl+p"
+ai_toggle = "ctrl+t"
+
+# ============================================================================
+# Git Hooks (requires --features git)
+# ============================================================================
+[hooks]
+# Enable git hooks integration
+enabled = true
+
+# Auto-commit after successful hook completion
+auto_commit = false
+
+# ============================================================================
+# Command Aliases
+# ============================================================================
+# Define shortcuts for frequently used commands
+
+[[aliases]]
+name = "build"
+command = "npm run build"
+description = "Build the project"
+
+[[aliases]]
+name = "test"
+command = "npm test"
+description = "Run tests"
+
+[[aliases]]
+name = "lint"
+command = "npm run lint"
+description = "Run linter"
+
+# ============================================================================
+# MCP (Model Context Protocol) Servers
+# ============================================================================
+[mcp]
+# Enable MCP for AI agent tools
+enabled = false
+
+# Example: File system server
+# [[mcp.servers]]
+# name = "filesystem"
+# command = "npx"
+# args = ["-y", "@anthropic/mcp-server-filesystem", "/path/to/allowed/dir"]
+
+# Example: Git server
+# [[mcp.servers]]
+# name = "git"
+# command = "npx"
+# args = ["-y", "@anthropic/mcp-server-git"]
+# cwd = "/path/to/repo"
+
+# Example: GitHub server
+# [[mcp.servers]]
+# name = "github"
+# command = "npx"
+# args = ["-y", "@anthropic/mcp-server-github"]
+# [mcp.servers.env]
+# GITHUB_TOKEN = "your-github-token"

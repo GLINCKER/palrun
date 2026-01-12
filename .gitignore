@@ -75,3 +75,7 @@ Cargo.lock.bak
 
 # Internal documentation (keep local)
 /local-docs/
+
+# Claude Code local files
+CLAUDE.md
+.claude/

@@ -150,14 +150,44 @@ pub struct AiConfig {
     /// Whether AI features are enabled
     pub enabled: bool,
 
-    /// AI provider (claude, ollama, openai)
+    /// Default AI provider (claude, ollama, openai, azure, grok)
     pub provider: String,
 
-    /// Model to use
+    /// Model to use (overrides provider-specific model)
     pub model: Option<String>,
 
+    /// Enable automatic fallback if primary provider fails
+    #[serde(default = "default_true")]
+    pub fallback_enabled: bool,
+
+    /// Fallback order
+    #[serde(default)]
+    pub fallback_chain: Vec<String>,
+
     /// Ollama-specific settings
+    #[serde(default)]
     pub ollama: OllamaConfig,
+
+    /// Claude-specific settings
+    #[serde(default)]
+    pub claude: ClaudeConfig,
+
+    /// OpenAI-specific settings
+    #[serde(default)]
+    pub openai: OpenAIConfig,
+
+    /// Azure OpenAI-specific settings
+    #[serde(default)]
+    pub azure: AzureOpenAIConfig,
+
+    /// Grok-specific settings
+    #[serde(default)]
+    pub grok: GrokConfig,
+}
+
+#[cfg(feature = "ai")]
+fn default_true() -> bool {
+    true
 }
 
 /// Ollama configuration.
@@ -170,6 +200,94 @@ pub struct OllamaConfig {
 
     /// Model to use
     pub model: String,
+}
+
+/// Claude (Anthropic) configuration.
+#[cfg(feature = "ai")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ClaudeConfig {
+    /// API key (prefer env var ANTHROPIC_API_KEY)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+
+    /// Model to use
+    #[serde(default = "default_claude_model")]
+    pub model: String,
+}
+
+#[cfg(feature = "ai")]
+fn default_claude_model() -> String {
+    "claude-sonnet-4-20250514".to_string()
+}
+
+/// OpenAI configuration.
+#[cfg(feature = "ai")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct OpenAIConfig {
+    /// API key (prefer env var OPENAI_API_KEY)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+
+    /// Model to use
+    #[serde(default = "default_openai_model")]
+    pub model: String,
+
+    /// Base URL (for OpenAI-compatible APIs)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+}
+
+#[cfg(feature = "ai")]
+fn default_openai_model() -> String {
+    "gpt-4o".to_string()
+}
+
+/// Azure OpenAI configuration.
+#[cfg(feature = "ai")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AzureOpenAIConfig {
+    /// Azure OpenAI endpoint (e.g., https://your-resource.openai.azure.com)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub endpoint: Option<String>,
+
+    /// API key (prefer env var AZURE_OPENAI_API_KEY)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+
+    /// Deployment name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deployment: Option<String>,
+
+    /// API version
+    #[serde(default = "default_azure_api_version")]
+    pub api_version: String,
+}
+
+#[cfg(feature = "ai")]
+fn default_azure_api_version() -> String {
+    "2024-02-01".to_string()
+}
+
+/// Grok (xAI) configuration.
+#[cfg(feature = "ai")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GrokConfig {
+    /// API key (prefer env var XAI_API_KEY)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+
+    /// Model to use
+    #[serde(default = "default_grok_model")]
+    pub model: String,
+}
+
+#[cfg(feature = "ai")]
+fn default_grok_model() -> String {
+    "grok-beta".to_string()
 }
 
 /// Keybinding configuration.
@@ -316,29 +434,69 @@ impl HooksConfig {
 }
 
 impl Config {
-    /// Load configuration from the default location.
+    /// Load configuration with hierarchical merging.
     ///
-    /// Looks for config in:
-    /// 1. `.palrun.toml` in current directory
-    /// 2. `~/.config/palrun/config.toml`
-    /// 3. Falls back to defaults
+    /// Loading order (later overrides earlier):
+    /// 1. Defaults
+    /// 2. `~/.config/palrun/palrun.toml` (system - can have secrets)
+    /// 3. `palrun.toml` in current directory (project - NO secrets)
+    /// 4. `.palrun.local.toml` in current directory (local - can have secrets, gitignored)
+    /// 5. Environment variables (highest priority)
     pub fn load() -> anyhow::Result<Self> {
-        // Try local config first
-        let local_config = PathBuf::from(".palrun.toml");
-        if local_config.exists() {
-            return Self::load_from_file(&local_config);
-        }
+        let mut config = Self::default();
 
-        // Try global config
+        // 1. Load system config (can have secrets)
         if let Some(config_dir) = dirs::config_dir() {
-            let global_config = config_dir.join("palrun").join("config.toml");
-            if global_config.exists() {
-                return Self::load_from_file(&global_config);
+            let system_config = config_dir.join("palrun").join("palrun.toml");
+            if system_config.exists() {
+                if let Ok(system) = Self::load_from_file(&system_config) {
+                    config = config.merge(system);
+                    tracing::debug!("Loaded system config from {}", system_config.display());
+                }
+            }
+            // Also check legacy path
+            let legacy_config = config_dir.join("palrun").join("config.toml");
+            if legacy_config.exists() && !system_config.exists() {
+                if let Ok(legacy) = Self::load_from_file(&legacy_config) {
+                    config = config.merge(legacy);
+                    tracing::debug!("Loaded legacy config from {}", legacy_config.display());
+                }
             }
         }
 
-        // Return defaults
-        Ok(Self::default())
+        // 2. Load project config (NO secrets - may be committed)
+        let project_config = PathBuf::from("palrun.toml");
+        if project_config.exists() {
+            if let Ok(project) = Self::load_from_file(&project_config) {
+                config = config.merge(project);
+                tracing::debug!("Loaded project config from palrun.toml");
+            }
+        }
+        // Also check .palrun.toml (legacy project config)
+        let legacy_project = PathBuf::from(".palrun.toml");
+        if legacy_project.exists() {
+            if let Ok(legacy) = Self::load_from_file(&legacy_project) {
+                config = config.merge(legacy);
+                tracing::debug!("Loaded legacy project config from .palrun.toml");
+            }
+        }
+
+        // 3. Load local config (can have secrets - gitignored)
+        let local_config = PathBuf::from(".palrun.local.toml");
+        if local_config.exists() {
+            if let Ok(local) = Self::load_from_file(&local_config) {
+                config = config.merge(local);
+                tracing::debug!("Loaded local config from .palrun.local.toml");
+            }
+        }
+
+        // 4. Apply environment variable overrides
+        #[cfg(feature = "ai")]
+        {
+            config = config.apply_env_overrides();
+        }
+
+        Ok(config)
     }
 
     /// Load configuration from a specific file.
@@ -346,6 +504,130 @@ impl Config {
         let content = std::fs::read_to_string(path)?;
         let config: Self = toml::from_str(&content)?;
         Ok(config)
+    }
+
+    /// Merge another config into this one (other takes precedence).
+    pub fn merge(mut self, other: Self) -> Self {
+        // General - use other's values if they differ from default
+        if other.general.show_hidden {
+            self.general.show_hidden = true;
+        }
+        if !other.general.confirm_dangerous {
+            self.general.confirm_dangerous = false;
+        }
+        if other.general.max_history != 1000 {
+            self.general.max_history = other.general.max_history;
+        }
+        if other.general.shell.is_some() {
+            self.general.shell = other.general.shell;
+        }
+
+        // UI
+        if other.ui.theme != "default" {
+            self.ui.theme = other.ui.theme;
+        }
+        if !other.ui.show_preview {
+            self.ui.show_preview = false;
+        }
+        if !other.ui.show_icons {
+            self.ui.show_icons = false;
+        }
+        if other.ui.max_display != 50 {
+            self.ui.max_display = other.ui.max_display;
+        }
+        if !other.ui.mouse {
+            self.ui.mouse = false;
+        }
+        if other.ui.custom_colors.is_some() {
+            self.ui.custom_colors = other.ui.custom_colors;
+        }
+
+        // Scanner
+        if !other.scanner.enabled.is_empty() {
+            self.scanner.enabled = other.scanner.enabled;
+        }
+        if !other.scanner.ignore_dirs.is_empty() {
+            self.scanner.ignore_dirs = other.scanner.ignore_dirs;
+        }
+
+        // AI config
+        #[cfg(feature = "ai")]
+        {
+            self.ai = self.ai.merge(other.ai);
+        }
+
+        // Keys - use other if different from default
+        let default_keys = KeyConfig::default();
+        if other.keys.quit != default_keys.quit {
+            self.keys.quit = other.keys.quit;
+        }
+        if other.keys.select != default_keys.select {
+            self.keys.select = other.keys.select;
+        }
+
+        // Aliases - append
+        if !other.aliases.is_empty() {
+            self.aliases.extend(other.aliases);
+        }
+
+        // MCP
+        if other.mcp.enabled {
+            self.mcp.enabled = true;
+        }
+        if !other.mcp.servers.is_empty() {
+            self.mcp.servers.extend(other.mcp.servers);
+        }
+
+        // Hooks
+        #[cfg(feature = "git")]
+        {
+            if other.hooks.pre_commit.is_some() {
+                self.hooks.pre_commit = other.hooks.pre_commit;
+            }
+            if other.hooks.commit_msg.is_some() {
+                self.hooks.commit_msg = other.hooks.commit_msg;
+            }
+            // ... other hooks follow the same pattern
+        }
+
+        self
+    }
+
+    /// Apply environment variable overrides to AI config.
+    #[cfg(feature = "ai")]
+    fn apply_env_overrides(mut self) -> Self {
+        // Claude
+        if let Ok(key) = std::env::var("ANTHROPIC_API_KEY") {
+            self.ai.claude.api_key = Some(key);
+        }
+
+        // OpenAI
+        if let Ok(key) = std::env::var("OPENAI_API_KEY") {
+            self.ai.openai.api_key = Some(key);
+        }
+
+        // Azure OpenAI
+        if let Ok(key) = std::env::var("AZURE_OPENAI_API_KEY") {
+            self.ai.azure.api_key = Some(key);
+        }
+        if let Ok(endpoint) = std::env::var("AZURE_OPENAI_ENDPOINT") {
+            self.ai.azure.endpoint = Some(endpoint);
+        }
+        if let Ok(deployment) = std::env::var("AZURE_OPENAI_DEPLOYMENT") {
+            self.ai.azure.deployment = Some(deployment);
+        }
+
+        // Grok
+        if let Ok(key) = std::env::var("XAI_API_KEY") {
+            self.ai.grok.api_key = Some(key);
+        }
+
+        // Ollama
+        if let Ok(url) = std::env::var("OLLAMA_HOST") {
+            self.ai.ollama.base_url = url;
+        }
+
+        self
     }
 
     /// Save configuration to the global config file.
@@ -442,7 +724,153 @@ impl Default for AiConfig {
             enabled: true,
             provider: "claude".to_string(),
             model: None,
+            fallback_enabled: true,
+            fallback_chain: vec![
+                "claude".to_string(),
+                "openai".to_string(),
+                "azure".to_string(),
+                "grok".to_string(),
+                "ollama".to_string(),
+            ],
             ollama: OllamaConfig::default(),
+            claude: ClaudeConfig::default(),
+            openai: OpenAIConfig::default(),
+            azure: AzureOpenAIConfig::default(),
+            grok: GrokConfig::default(),
+        }
+    }
+}
+
+#[cfg(feature = "ai")]
+impl Default for ClaudeConfig {
+    fn default() -> Self {
+        Self { api_key: None, model: default_claude_model() }
+    }
+}
+
+#[cfg(feature = "ai")]
+impl Default for OpenAIConfig {
+    fn default() -> Self {
+        Self { api_key: None, model: default_openai_model(), base_url: None }
+    }
+}
+
+#[cfg(feature = "ai")]
+impl Default for AzureOpenAIConfig {
+    fn default() -> Self {
+        Self {
+            endpoint: None,
+            api_key: None,
+            deployment: None,
+            api_version: default_azure_api_version(),
+        }
+    }
+}
+
+#[cfg(feature = "ai")]
+impl Default for GrokConfig {
+    fn default() -> Self {
+        Self { api_key: None, model: default_grok_model() }
+    }
+}
+
+#[cfg(feature = "ai")]
+impl AiConfig {
+    /// Merge another AI config into this one (other takes precedence for non-None values).
+    pub fn merge(mut self, other: Self) -> Self {
+        // Basic settings
+        if !other.enabled {
+            self.enabled = false;
+        }
+        if other.provider != "claude" {
+            self.provider = other.provider;
+        }
+        if other.model.is_some() {
+            self.model = other.model;
+        }
+        if !other.fallback_enabled {
+            self.fallback_enabled = false;
+        }
+        if !other.fallback_chain.is_empty() {
+            self.fallback_chain = other.fallback_chain;
+        }
+
+        // Ollama
+        if other.ollama.base_url != "http://localhost:11434" {
+            self.ollama.base_url = other.ollama.base_url;
+        }
+        if other.ollama.model != "codellama:7b" {
+            self.ollama.model = other.ollama.model;
+        }
+
+        // Claude
+        if other.claude.api_key.is_some() {
+            self.claude.api_key = other.claude.api_key;
+        }
+        if other.claude.model != default_claude_model() {
+            self.claude.model = other.claude.model;
+        }
+
+        // OpenAI
+        if other.openai.api_key.is_some() {
+            self.openai.api_key = other.openai.api_key;
+        }
+        if other.openai.model != default_openai_model() {
+            self.openai.model = other.openai.model;
+        }
+        if other.openai.base_url.is_some() {
+            self.openai.base_url = other.openai.base_url;
+        }
+
+        // Azure
+        if other.azure.endpoint.is_some() {
+            self.azure.endpoint = other.azure.endpoint;
+        }
+        if other.azure.api_key.is_some() {
+            self.azure.api_key = other.azure.api_key;
+        }
+        if other.azure.deployment.is_some() {
+            self.azure.deployment = other.azure.deployment;
+        }
+        if other.azure.api_version != default_azure_api_version() {
+            self.azure.api_version = other.azure.api_version;
+        }
+
+        // Grok
+        if other.grok.api_key.is_some() {
+            self.grok.api_key = other.grok.api_key;
+        }
+        if other.grok.model != default_grok_model() {
+            self.grok.model = other.grok.model;
+        }
+
+        self
+    }
+
+    /// Check if a provider has credentials configured.
+    pub fn has_credentials(&self, provider: &str) -> bool {
+        match provider {
+            "claude" => self.claude.api_key.is_some(),
+            "openai" => self.openai.api_key.is_some(),
+            "azure" => {
+                self.azure.api_key.is_some()
+                    && self.azure.endpoint.is_some()
+                    && self.azure.deployment.is_some()
+            }
+            "grok" => self.grok.api_key.is_some(),
+            "ollama" => true, // Ollama doesn't need credentials
+            _ => false,
+        }
+    }
+
+    /// Get the API key for a provider (from config, not env).
+    pub fn get_api_key(&self, provider: &str) -> Option<&str> {
+        match provider {
+            "claude" => self.claude.api_key.as_deref(),
+            "openai" => self.openai.api_key.as_deref(),
+            "azure" => self.azure.api_key.as_deref(),
+            "grok" => self.grok.api_key.as_deref(),
+            _ => None,
         }
     }
 }

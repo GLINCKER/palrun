@@ -16,6 +16,12 @@ use crate::App;
 
 /// Draw the main UI.
 pub fn draw(frame: &mut Frame, app: &App) {
+    // Check if we're showing trust confirmation
+    if matches!(app.mode, AppMode::TrustConfirmation) {
+        draw_trust_confirmation(frame, app);
+        return;
+    }
+
     // Check if we're showing execution result
     if matches!(app.mode, AppMode::ExecutionResult) {
         draw_execution_result(frame, app);
@@ -37,6 +43,26 @@ pub fn draw(frame: &mut Frame, app: &App) {
     // Check if we're showing analytics screen
     if matches!(app.mode, AppMode::Analytics) {
         draw_analytics_screen(frame, app);
+        return;
+    }
+
+    // Check if we're showing workflow screen
+    if matches!(app.mode, AppMode::Workflow) {
+        draw_workflow_screen(frame, app);
+        return;
+    }
+
+    // Check if we're showing AI chat screen
+    #[cfg(feature = "ai")]
+    if matches!(app.mode, AppMode::AiChat) {
+        draw_ai_chat_screen(frame, app);
+        return;
+    }
+
+    // Check if we're showing AI setup screen
+    #[cfg(feature = "ai")]
+    if matches!(app.mode, AppMode::AiSetup) {
+        draw_ai_setup_screen(frame, app);
         return;
     }
 
@@ -743,6 +769,17 @@ const STATUS_TIPS: &[&str] = &[
 fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     let theme = &app.theme;
     let mut left_spans = Vec::new();
+
+    // Mode indicator (Commands mode with toggle hint)
+    #[cfg(feature = "ai")]
+    {
+        left_spans.push(Span::styled(
+            " CMD ",
+            Style::default().bg(theme.accent).fg(theme.background).add_modifier(Modifier::BOLD),
+        ));
+        left_spans.push(Span::styled(" Ctrl+T→AI ", Style::default().fg(theme.text_dim)));
+        left_spans.push(Span::styled("│ ", Style::default().fg(theme.border)));
+    }
 
     // Git branch and status (if available)
     #[cfg(feature = "git")]
@@ -1699,6 +1736,689 @@ fn draw_context_menu_overlay(frame: &mut Frame, app: &App) {
     );
 
     frame.render_widget(list, popup_area);
+}
+
+/// Draw the workflow dashboard screen.
+fn draw_workflow_screen(frame: &mut Frame, app: &App) {
+    let theme = &app.theme;
+    let area = frame.area();
+
+    // Layout: title, content, footer
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Title
+            Constraint::Min(10),   // Content
+            Constraint::Length(2), // Footer
+        ])
+        .split(area);
+
+    // Title
+    let title = Paragraph::new(Line::from(vec![Span::styled(
+        " Workflow Dashboard ",
+        Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
+    )]))
+    .alignment(Alignment::Center)
+    .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.primary)));
+    frame.render_widget(title, chunks[0]);
+
+    // Content - show workflow context or empty state
+    let mut lines = Vec::new();
+
+    if let Some(ref ctx) = app.workflow_context {
+        // Project info
+        if let Some(ref project) = ctx.project {
+            lines.push(Line::from(Span::styled(
+                " Project",
+                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(vec![
+                Span::styled("   Name: ", Style::default().fg(theme.text_dim)),
+                Span::styled(&project.name, Style::default().fg(theme.text)),
+            ]));
+            if !project.description.is_empty() {
+                lines.push(Line::from(vec![
+                    Span::styled("   ", Style::default().fg(theme.text_dim)),
+                    Span::styled(&project.description, Style::default().fg(theme.text_muted)),
+                ]));
+            }
+            lines.push(Line::from(""));
+        }
+
+        // Roadmap info
+        if let Some(ref roadmap) = ctx.roadmap {
+            lines.push(Line::from(Span::styled(
+                " Roadmap",
+                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+            )));
+            for phase in &roadmap.phases {
+                let status_icon = match phase.status {
+                    crate::workflow::PhaseStatus::Pending => "○",
+                    crate::workflow::PhaseStatus::InProgress => "◐",
+                    crate::workflow::PhaseStatus::Completed => "●",
+                    crate::workflow::PhaseStatus::Blocked => "⊗",
+                };
+                let status_color = match phase.status {
+                    crate::workflow::PhaseStatus::Pending => theme.text_muted,
+                    crate::workflow::PhaseStatus::InProgress => theme.warning,
+                    crate::workflow::PhaseStatus::Completed => theme.success,
+                    crate::workflow::PhaseStatus::Blocked => theme.error,
+                };
+                lines.push(Line::from(vec![
+                    Span::styled(format!("   {} ", status_icon), Style::default().fg(status_color)),
+                    Span::styled(&phase.name, Style::default().fg(theme.text)),
+                ]));
+            }
+            lines.push(Line::from(""));
+        }
+
+        // Current state
+        if let Some(ref state) = ctx.state {
+            lines.push(Line::from(Span::styled(
+                " Current State",
+                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(vec![
+                Span::styled("   Phase: ", Style::default().fg(theme.text_dim)),
+                Span::styled(format!("{}", state.current_phase), Style::default().fg(theme.text)),
+            ]));
+            if !state.blockers.is_empty() {
+                lines.push(Line::from(vec![
+                    Span::styled("   Blockers: ", Style::default().fg(theme.error)),
+                    Span::styled(
+                        format!("{}", state.blockers.len()),
+                        Style::default().fg(theme.error),
+                    ),
+                ]));
+            }
+        }
+    } else {
+        // Empty state - no workflow documents
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            "No workflow documents found",
+            Style::default().fg(theme.text_dim),
+        )));
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            "Create PROJECT.md, ROADMAP.md, or PLAN.md to get started",
+            Style::default().fg(theme.text_muted),
+        )));
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            "Run 'pal workflow init' to create templates",
+            Style::default().fg(theme.accent),
+        )));
+    }
+
+    let content = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.border))
+            .padding(Padding::horizontal(2)),
+    );
+    frame.render_widget(content, chunks[1]);
+
+    // Footer with hints
+    let footer = Paragraph::new(Line::from(vec![
+        Span::styled(" Press ", Style::default().fg(theme.text_dim)),
+        Span::styled(
+            "Esc",
+            Style::default().fg(theme.text).bg(theme.selected_bg).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" to close ", Style::default().fg(theme.text_dim)),
+    ]))
+    .alignment(Alignment::Center);
+    frame.render_widget(footer, chunks[2]);
+}
+
+/// Draw the AI chat screen.
+#[cfg(feature = "ai")]
+fn draw_ai_chat_screen(frame: &mut Frame, app: &App) {
+    let theme = &app.theme;
+    let area = frame.area();
+
+    // Layout: header, chat history, input at BOTTOM
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1), // Header
+            Constraint::Min(5),    // Chat history (flexible)
+            Constraint::Length(3), // Input bar at bottom
+        ])
+        .split(area);
+
+    // Minimal header with mode indicator
+    let ai_status = app.ai_status.as_deref().unwrap_or("No AI");
+    let header = Paragraph::new(Line::from(vec![
+        Span::styled(
+            " AI ",
+            Style::default().bg(theme.primary).fg(theme.background).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" Ctrl+T→CMD ", Style::default().fg(theme.text_dim)),
+        Span::styled("│ ", Style::default().fg(theme.border)),
+        Span::styled(format!("[{}]", ai_status), Style::default().fg(theme.text_dim)),
+        Span::styled("  ↑↓ scroll  Esc close", Style::default().fg(theme.text_muted)),
+    ]));
+    frame.render_widget(header, chunks[0]);
+
+    // Chat history with markdown rendering
+    let mut lines: Vec<Line> = Vec::new();
+    if app.ai_chat_history.is_empty() {
+        if app.ai_status.is_none() {
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                " Setup: ollama run llama3.2",
+                Style::default().fg(theme.accent),
+            )));
+        } else {
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                " Ask: \"how to build?\" \"run tests\" \"git status\"",
+                Style::default().fg(theme.text_dim),
+            )));
+        }
+    } else {
+        for (user_msg, ai_response) in &app.ai_chat_history {
+            // User message
+            lines.push(Line::from(vec![
+                Span::styled("> ", Style::default().fg(theme.secondary)),
+                Span::styled(user_msg.as_str(), Style::default().fg(theme.text)),
+            ]));
+
+            // AI response with markdown
+            if !ai_response.is_empty() {
+                let rendered = render_markdown(ai_response, theme);
+                lines.extend(rendered);
+                lines.push(Line::from(Span::styled("───", Style::default().fg(theme.border))));
+            }
+        }
+
+        // Thinking indicator with dynamic message
+        if app.ai_thinking {
+            lines.push(Line::from(vec![
+                Span::styled(
+                    format!("{} ", app.spinner_char()),
+                    Style::default().fg(theme.warning),
+                ),
+                Span::styled(
+                    app.thinking_message(),
+                    Style::default().fg(theme.warning).add_modifier(Modifier::ITALIC),
+                ),
+            ]));
+        }
+    }
+
+    // Auto-scroll to bottom when new content
+    let total_lines = lines.len();
+    let visible_height = chunks[1].height.saturating_sub(2) as usize;
+    let max_scroll = total_lines.saturating_sub(visible_height);
+    let scroll_offset = if app.ai_chat_scroll == 0 {
+        max_scroll // Auto-scroll to bottom
+    } else {
+        max_scroll.saturating_sub(app.ai_chat_scroll)
+    };
+
+    let history = Paragraph::new(lines)
+        .block(Block::default().padding(Padding::horizontal(1)))
+        .wrap(Wrap { trim: false })
+        .scroll((scroll_offset as u16, 0));
+    frame.render_widget(history, chunks[1]);
+
+    // Input bar at bottom - clean and responsive
+    let input_text = if app.ai_thinking {
+        format!("{} {}", app.spinner_char(), app.thinking_message())
+    } else {
+        app.ai_chat_input.clone()
+    };
+
+    let input_style = if app.ai_thinking {
+        Style::default().fg(theme.warning)
+    } else {
+        Style::default().fg(theme.text)
+    };
+
+    let border_color = if app.ai_thinking { theme.warning } else { theme.accent };
+
+    // Show slash command hints when input starts with "/"
+    let input_title = if app.ai_thinking {
+        "".to_string()
+    } else if app.ai_chat_input.starts_with('/') {
+        " / /clear /model /context /help ".to_string()
+    } else {
+        " > ".to_string()
+    };
+
+    let input = Paragraph::new(input_text).style(input_style).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(border_color))
+            .title(input_title)
+            .title_style(Style::default().fg(theme.accent)),
+    );
+    frame.render_widget(input, chunks[2]);
+}
+
+/// Render markdown text into styled Lines.
+#[cfg(feature = "ai")]
+fn render_markdown<'a>(text: &'a str, theme: &'a crate::tui::Theme) -> Vec<Line<'a>> {
+    let mut lines: Vec<Line> = Vec::new();
+    let mut in_code_block = false;
+    let mut code_lang = String::new();
+
+    for line in text.lines() {
+        // Check for code block start/end
+        if line.trim().starts_with("```") {
+            if in_code_block {
+                // End of code block
+                in_code_block = false;
+                code_lang.clear();
+            } else {
+                // Start of code block
+                in_code_block = true;
+                code_lang = line.trim().strip_prefix("```").unwrap_or("").to_string();
+            }
+            continue;
+        }
+
+        if in_code_block {
+            // Code block content - highlighted
+            lines.push(Line::from(vec![
+                Span::styled("  ", Style::default()),
+                Span::styled(
+                    line.to_string(),
+                    Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+                ),
+            ]));
+        } else if line.trim().starts_with("- ") || line.trim().starts_with("* ") {
+            // Bullet point
+            let content = line
+                .trim()
+                .strip_prefix("- ")
+                .or_else(|| line.trim().strip_prefix("* "))
+                .unwrap_or(line);
+            lines.push(Line::from(vec![
+                Span::styled("  • ", Style::default().fg(theme.accent)),
+                Span::styled(
+                    render_inline_markdown(content, theme),
+                    Style::default().fg(theme.text),
+                ),
+            ]));
+        } else if line.trim().starts_with("# ") {
+            // Header
+            let content = line.trim().strip_prefix("# ").unwrap_or(line);
+            lines.push(Line::from(Span::styled(
+                content.to_string(),
+                Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
+            )));
+        } else if line.trim().is_empty() {
+            lines.push(Line::from(""));
+        } else {
+            // Regular text with inline code handling
+            let spans = parse_inline_code(line, theme);
+            lines.push(Line::from(spans));
+        }
+    }
+
+    lines
+}
+
+/// Parse inline code (backticks) and return styled spans.
+#[cfg(feature = "ai")]
+fn parse_inline_code<'a>(text: &'a str, theme: &'a crate::tui::Theme) -> Vec<Span<'a>> {
+    let mut spans = Vec::new();
+    let mut current = String::new();
+    let mut in_code = false;
+
+    let chars: Vec<char> = text.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        let c = chars[i];
+
+        if c == '`' {
+            if in_code {
+                // End of inline code
+                spans.push(Span::styled(
+                    format!(" {} ", current),
+                    Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+                ));
+                current.clear();
+                in_code = false;
+            } else {
+                // Start of inline code
+                if !current.is_empty() {
+                    spans.push(Span::styled(current.clone(), Style::default().fg(theme.text)));
+                    current.clear();
+                }
+                in_code = true;
+            }
+        } else {
+            current.push(c);
+        }
+        i += 1;
+    }
+
+    // Handle remaining text
+    if !current.is_empty() {
+        if in_code {
+            // Unclosed code block
+            spans.push(Span::styled(format!("`{}", current), Style::default().fg(theme.text)));
+        } else {
+            spans.push(Span::styled(current, Style::default().fg(theme.text)));
+        }
+    }
+
+    if spans.is_empty() {
+        spans.push(Span::raw(""));
+    }
+
+    spans
+}
+
+/// Render inline markdown (for bullet point content).
+#[cfg(feature = "ai")]
+fn render_inline_markdown(text: &str, _theme: &crate::tui::Theme) -> String {
+    // Simple passthrough for now - could add bold/italic support
+    text.to_string()
+}
+
+/// Draw the AI setup screen for managing models.
+#[cfg(feature = "ai")]
+fn draw_ai_setup_screen(frame: &mut Frame, app: &App) {
+    let theme = &app.theme;
+    let area = frame.area();
+
+    // Layout: title, model list, input, footer
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Title
+            Constraint::Min(10),   // Model list
+            Constraint::Length(3), // Pull input
+            Constraint::Length(2), // Footer
+        ])
+        .split(area);
+
+    // Title with Ollama status
+    let ollama_status = if app.ai_models_loading {
+        "Loading..."
+    } else if app.ai_models.is_empty() {
+        "No models"
+    } else {
+        "Connected"
+    };
+    let title = Paragraph::new(Line::from(vec![
+        Span::styled(
+            " AI Models ",
+            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(format!("[Ollama: {}]", ollama_status), Style::default().fg(theme.text_dim)),
+    ]))
+    .alignment(Alignment::Center)
+    .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.primary)));
+    frame.render_widget(title, chunks[0]);
+
+    // Model list
+    let mut lines = Vec::new();
+
+    if app.ai_models_loading {
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            "  Loading models...",
+            Style::default().fg(theme.text_dim),
+        )));
+    } else if app.ai_models.is_empty() {
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            " No models installed",
+            Style::default().fg(theme.warning),
+        )));
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            " Type a model name below and press Enter to download",
+            Style::default().fg(theme.text_dim),
+        )));
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(" Popular models:", Style::default().fg(theme.accent))));
+        lines.push(Line::from(Span::styled(
+            "   llama3.2      - Meta's latest LLaMA (small, fast)",
+            Style::default().fg(theme.text_muted),
+        )));
+        lines.push(Line::from(Span::styled(
+            "   qwen2.5:3b    - Alibaba Qwen (efficient)",
+            Style::default().fg(theme.text_muted),
+        )));
+        lines.push(Line::from(Span::styled(
+            "   mistral       - Mistral 7B (balanced)",
+            Style::default().fg(theme.text_muted),
+        )));
+        lines.push(Line::from(Span::styled(
+            "   codellama     - Code-focused LLaMA",
+            Style::default().fg(theme.text_muted),
+        )));
+        lines.push(Line::from(Span::styled(
+            "   phi3          - Microsoft Phi-3 (compact)",
+            Style::default().fg(theme.text_muted),
+        )));
+    } else {
+        // Header
+        lines.push(Line::from(vec![
+            Span::styled(
+                format!("   {:<30}", "Model"),
+                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("{:>10}", "Size"),
+                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+            ),
+        ]));
+        lines.push(Line::from(Span::styled("─".repeat(45), Style::default().fg(theme.border))));
+
+        // Model entries
+        for (i, model) in app.ai_models.iter().enumerate() {
+            let is_selected = i == app.ai_model_selected;
+            let current_model = std::env::var("OLLAMA_MODEL").unwrap_or_default();
+            let is_active = model.name == current_model;
+            let is_pending_delete = app.ai_delete_pending.as_ref() == Some(&model.name);
+
+            let prefix = if is_pending_delete {
+                " X "
+            } else if is_selected {
+                " > "
+            } else {
+                "   "
+            };
+            let active_marker = if is_active { " *" } else { "" };
+
+            let size_str = format_size(model.size);
+
+            // Style: red if pending delete, otherwise normal selection
+            let style = if is_pending_delete {
+                Style::default().fg(theme.error).add_modifier(Modifier::BOLD).bg(theme.selected_bg)
+            } else if is_selected {
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD).bg(theme.selected_bg)
+            } else {
+                Style::default().fg(theme.text)
+            };
+
+            let active_style = if is_pending_delete {
+                Style::default().fg(theme.error).add_modifier(Modifier::BOLD)
+            } else if is_active {
+                Style::default().fg(theme.success)
+            } else {
+                style
+            };
+
+            let prefix_style = if is_pending_delete {
+                Style::default().fg(theme.error)
+            } else {
+                Style::default().fg(theme.accent)
+            };
+
+            lines.push(Line::from(vec![
+                Span::styled(prefix, prefix_style),
+                Span::styled(format!("{:<30}", model.name), active_style),
+                Span::styled(format!("{:>10}", size_str), Style::default().fg(theme.text_dim)),
+                Span::styled(active_marker, Style::default().fg(theme.success)),
+            ]));
+        }
+
+        // Show pull progress if downloading
+        if let Some(ref progress) = app.ai_pull_progress {
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                format!("  {}", progress),
+                Style::default().fg(theme.warning),
+            )));
+        }
+    }
+
+    let model_list = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.border))
+            .title(" Installed Models ")
+            .title_style(Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD))
+            .padding(Padding::horizontal(1)),
+    );
+    frame.render_widget(model_list, chunks[1]);
+
+    // Pull input
+    let input = Paragraph::new(Line::from(vec![
+        Span::styled(" Pull: ", Style::default().fg(theme.secondary)),
+        Span::styled(&app.ai_model_input, Style::default().fg(theme.text)),
+        Span::styled("│", Style::default().fg(theme.border)),
+    ]))
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.accent))
+            .title(" Download New Model ")
+            .title_style(Style::default().fg(theme.accent)),
+    );
+    frame.render_widget(input, chunks[2]);
+
+    // Footer with hints - changes based on state
+    let footer_content = if app.ai_delete_pending.is_some() {
+        // Delete confirmation mode
+        vec![
+            Span::styled("d", Style::default().fg(theme.error).add_modifier(Modifier::BOLD)),
+            Span::styled(" CONFIRM DELETE  ", Style::default().fg(theme.error)),
+            Span::styled("Esc", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(" cancel", Style::default().fg(theme.text_dim)),
+        ]
+    } else if app.ai_pull_progress.is_some() {
+        // Downloading mode
+        vec![
+            Span::styled("Downloading... ", Style::default().fg(theme.warning)),
+            Span::styled("Please wait", Style::default().fg(theme.text_dim)),
+        ]
+    } else {
+        // Normal mode
+        vec![
+            Span::styled("Enter", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(" use/pull  ", Style::default().fg(theme.text_dim)),
+            Span::styled("d", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(" delete  ", Style::default().fg(theme.text_dim)),
+            Span::styled("r", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(" refresh  ", Style::default().fg(theme.text_dim)),
+            Span::styled("Esc", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(" close", Style::default().fg(theme.text_dim)),
+        ]
+    };
+
+    let footer = Paragraph::new(Line::from(footer_content)).alignment(Alignment::Center);
+    frame.render_widget(footer, chunks[3]);
+}
+
+/// Format file size in human readable form.
+#[cfg(feature = "ai")]
+fn format_size(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = KB * 1024;
+    const GB: u64 = MB * 1024;
+
+    if bytes >= GB {
+        format!("{:.1}GB", bytes as f64 / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.1}MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.1}KB", bytes as f64 / KB as f64)
+    } else {
+        format!("{}B", bytes)
+    }
+}
+
+/// Draw the trust confirmation dialog.
+fn draw_trust_confirmation(frame: &mut Frame, app: &App) {
+    use crate::core::trust_warning_message;
+
+    let theme = &app.theme;
+    let area = frame.area();
+
+    // Center the dialog
+    let dialog_width = 60.min(area.width.saturating_sub(4));
+    let dialog_height = 12;
+    let dialog_area = Rect::new(
+        (area.width.saturating_sub(dialog_width)) / 2,
+        (area.height.saturating_sub(dialog_height)) / 2,
+        dialog_width,
+        dialog_height,
+    );
+
+    // Clear background
+    frame.render_widget(Clear, area);
+
+    // Build warning message
+    let warning_lines = trust_warning_message(&app.cwd);
+    let mut content: Vec<Line> = vec![Line::from("")];
+
+    for line in warning_lines {
+        content
+            .push(Line::from(Span::styled(format!(" {}", line), Style::default().fg(theme.text))));
+    }
+
+    content.push(Line::from(""));
+
+    // Options
+    let yes_style = if app.trust_selected == 0 {
+        Style::default().fg(theme.background).bg(theme.success).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(theme.text_dim)
+    };
+
+    let no_style = if app.trust_selected == 1 {
+        Style::default().fg(theme.background).bg(theme.error).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(theme.text_dim)
+    };
+
+    content.push(Line::from(vec![
+        Span::raw("   "),
+        Span::styled(if app.trust_selected == 0 { "> " } else { "  " }, yes_style),
+        Span::styled("Yes, proceed", yes_style),
+        Span::raw("     "),
+        Span::styled(if app.trust_selected == 1 { "> " } else { "  " }, no_style),
+        Span::styled("No, exit", no_style),
+    ]));
+
+    content.push(Line::from(""));
+    content.push(Line::from(Span::styled(
+        " Use arrow keys to select, Enter to confirm",
+        Style::default().fg(theme.text_muted),
+    )));
+
+    let dialog = Paragraph::new(content).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.warning))
+            .title(" Trust This Folder? ")
+            .title_style(Style::default().fg(theme.warning).add_modifier(Modifier::BOLD))
+            .style(Style::default().bg(theme.background)),
+    );
+
+    frame.render_widget(dialog, dialog_area);
 }
 
 #[cfg(test)]

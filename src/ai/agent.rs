@@ -387,13 +387,9 @@ mod tests {
 
     #[test]
     fn test_build_system_prompt() {
-        let context = ProjectContext {
-            project_name: "my-app".to_string(),
-            project_type: "node".to_string(),
-            available_commands: vec!["npm run build".to_string()],
-            current_directory: PathBuf::from("/project"),
-            recent_commands: vec![],
-        };
+        let mut context = ProjectContext::new("my-app", PathBuf::from("/project"));
+        context.project_type = "node".to_string();
+        context.available_commands = vec!["npm run build".to_string()];
 
         let tools = vec![AgentTool {
             name: "read_file".to_string(),

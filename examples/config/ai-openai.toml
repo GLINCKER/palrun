@@ -1,0 +1,49 @@
+# Palrun AI Configuration - OpenAI / GPT-4
+#
+# To use OpenAI as your AI provider:
+# 1. Get an API key from https://platform.openai.com/api-keys
+# 2. Set the environment variable: export OPENAI_API_KEY="your-key-here"
+# 3. Copy this file to ~/.config/palrun/palrun.toml or your project root
+#
+# OpenAI models available:
+# - gpt-4o               (most capable, multimodal)
+# - gpt-4o-mini          (faster, cheaper)
+# - gpt-4-turbo          (GPT-4 with better instruction following)
+# - gpt-3.5-turbo        (fastest, most affordable)
+# - o1-preview           (reasoning model)
+# - o1-mini              (faster reasoning)
+
+[ai]
+enabled = true
+provider = "openai"
+
+# Optional: specify model (defaults to gpt-4o)
+# model = "gpt-4o"
+
+# Note: Set OPENAI_API_KEY in your environment
+# Example: export OPENAI_API_KEY="sk-proj-..."
+
+# ============================================================================
+# Azure OpenAI Configuration
+# ============================================================================
+# To use Azure OpenAI instead:
+# 1. Set AZURE_OPENAI_API_KEY
+# 2. Set AZURE_OPENAI_ENDPOINT (e.g., "https://your-resource.openai.azure.com")
+# 3. Set AZURE_OPENAI_DEPLOYMENT_NAME
+
+# [ai]
+# enabled = true
+# provider = "azure-openai"
+# model = "gpt-4o"  # Your deployment name
+
+# ============================================================================
+# Grok (xAI) Configuration
+# ============================================================================
+# To use Grok:
+# 1. Get an API key from https://console.x.ai/
+# 2. Set: export XAI_API_KEY="your-key-here"
+
+# [ai]
+# enabled = true
+# provider = "grok"
+# model = "grok-beta"

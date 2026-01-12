@@ -1,0 +1,64 @@
+#!/bin/bash
+# Pre-push hook: Full quality + security checks
+# Runs: tests, security audit, license check
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo -e "${YELLOW}Running pre-push checks (this may take a moment)...${NC}"
+
+# 1. Run tests
+echo -e "${BLUE}Running tests...${NC}"
+if cargo test --all-features --workspace --quiet 2>/dev/null; then
+    echo -e "  Tests: ${GREEN}OK${NC}"
+else
+    echo -e "  Tests: ${RED}FAILED${NC}"
+    echo ""
+    echo "Tests failed. Run 'cargo test --all-features' to see failures."
+    exit 1
+fi
+
+# 2. Security audit (if cargo-audit is installed)
+if command -v cargo-audit &> /dev/null; then
+    echo -n "  Security audit... "
+    if cargo audit --quiet 2>/dev/null; then
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${YELLOW}WARNINGS${NC} (check 'cargo audit' for details)"
+        # Don't fail on warnings - just inform
+    fi
+else
+    echo -e "  Security audit: ${YELLOW}SKIPPED${NC} (install with: cargo install cargo-audit)"
+fi
+
+# 3. License/dependency check (if cargo-deny is installed)
+if command -v cargo-deny &> /dev/null; then
+    echo -n "  License check... "
+    if cargo deny check licenses --quiet 2>/dev/null; then
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${RED}FAILED${NC}"
+        echo ""
+        echo "License check failed. Run 'cargo deny check' for details."
+        exit 1
+    fi
+
+    echo -n "  Dependency check... "
+    if cargo deny check bans --quiet 2>/dev/null; then
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${YELLOW}WARNINGS${NC}"
+        # Don't fail - just inform
+    fi
+else
+    echo -e "  License check: ${YELLOW}SKIPPED${NC} (install with: cargo install cargo-deny)"
+fi
+
+echo ""
+echo -e "${GREEN}All pre-push checks passed!${NC}"

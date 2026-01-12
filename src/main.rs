@@ -88,7 +88,7 @@ enum Commands {
         dry_run: bool,
 
         /// Variable assignments (key=value)
-        #[arg(short, long)]
+        #[arg(long)]
         var: Vec<String>,
     },
 
@@ -128,6 +128,13 @@ enum Commands {
         /// Show config file path
         #[arg(long)]
         path: bool,
+    },
+
+    /// Project workflow management (GSD-style)
+    Workflow {
+        /// Workflow operation
+        #[command(subcommand)]
+        operation: WorkflowOperation,
     },
 
     /// AI-powered command generation
@@ -208,6 +215,20 @@ enum Commands {
         /// MCP operation
         #[command(subcommand)]
         operation: McpOperation,
+    },
+
+    /// Generate and install slash commands for AI IDEs
+    Slash {
+        /// Slash command operation
+        #[command(subcommand)]
+        operation: SlashOperation,
+    },
+
+    /// Set up Claude AI integration for your project
+    Claude {
+        /// Claude operation
+        #[command(subcommand)]
+        operation: ClaudeOperation,
     },
 
     /// Debug and inspect Palrun internals
@@ -291,6 +312,126 @@ enum McpOperation {
 
     /// Show MCP configuration
     Config,
+}
+
+/// Slash command operations.
+#[derive(Subcommand)]
+enum SlashOperation {
+    /// List all available palrun slash commands
+    List,
+
+    /// Show available IDE targets
+    Targets,
+
+    /// Generate slash commands for a specific IDE
+    Generate {
+        /// Target IDE (claude, cursor, windsurf, continue, aider)
+        target: String,
+
+        /// Output directory (uses default if not specified)
+        #[arg(short, long)]
+        output: Option<String>,
+
+        /// Dry run - show what would be generated
+        #[arg(short, long)]
+        dry_run: bool,
+    },
+
+    /// Install slash commands to all detected IDEs
+    Install {
+        /// Force overwrite existing files
+        #[arg(short, long)]
+        force: bool,
+
+        /// Dry run - show what would be installed
+        #[arg(short, long)]
+        dry_run: bool,
+    },
+
+    /// Show the generated content for a specific command
+    Show {
+        /// Command name
+        command: String,
+
+        /// Target IDE (defaults to claude)
+        #[arg(short, long, default_value = "claude")]
+        target: String,
+    },
+}
+
+/// Claude AI setup operations.
+#[derive(Subcommand)]
+enum ClaudeOperation {
+    /// Initialize Claude AI configuration for your project
+    Init {
+        /// Force overwrite existing CLAUDE.md files
+        #[arg(short, long)]
+        force: bool,
+
+        /// Dry run - show what would be created
+        #[arg(short, long)]
+        dry_run: bool,
+
+        /// Include directory-specific CLAUDE.md files for key directories
+        #[arg(short, long)]
+        recursive: bool,
+    },
+
+    /// Show current Claude configuration status
+    Status,
+}
+
+/// Workflow operations (GSD-style planning and execution).
+#[derive(Subcommand)]
+enum WorkflowOperation {
+    /// Initialize project documents (PROJECT.md, STATE.md)
+    Init {
+        /// Force overwrite existing files
+        #[arg(short, long)]
+        force: bool,
+    },
+
+    /// Show current project status
+    Status,
+
+    /// Create a plan from a roadmap phase
+    Plan {
+        /// Phase number to plan
+        phase: usize,
+
+        /// Dry run - show plan without saving
+        #[arg(short, long)]
+        dry_run: bool,
+    },
+
+    /// Execute the current plan
+    Execute {
+        /// Specific task ID to execute (runs all if not specified)
+        #[arg(short, long)]
+        task: Option<usize>,
+
+        /// Dry run - show what would be executed
+        #[arg(short, long)]
+        dry_run: bool,
+
+        /// AI provider to use
+        #[arg(short, long)]
+        provider: Option<String>,
+    },
+
+    /// Verify the current task or plan
+    Verify {
+        /// Specific task ID to verify
+        #[arg(short, long)]
+        task: Option<usize>,
+    },
+
+    /// Analyze the codebase and generate CODEBASE.md
+    Analyze {
+        /// Output path (defaults to .palrun/CODEBASE.md)
+        #[arg(short, long)]
+        output: Option<String>,
+    },
 }
 
 /// Environment operations.
@@ -542,6 +683,12 @@ enum AiOperation {
         /// Use only local LLM (Ollama)
         #[arg(long)]
         local: bool,
+    },
+
+    /// Open interactive AI chat mode
+    Chat {
+        /// Initial prompt to start the conversation
+        prompt: Option<String>,
     },
 }
 
@@ -872,6 +1019,9 @@ fn main() -> Result<()> {
         Some(Commands::Config { path }) => {
             cmd_config(path)?;
         }
+        Some(Commands::Workflow { operation }) => {
+            cmd_workflow(operation)?;
+        }
         #[cfg(feature = "ai")]
         Some(Commands::Ai { operation }) => {
             cmd_ai(operation)?;
@@ -907,6 +1057,12 @@ fn main() -> Result<()> {
         }
         Some(Commands::Mcp { operation }) => {
             cmd_mcp(operation)?;
+        }
+        Some(Commands::Slash { operation }) => {
+            cmd_slash(operation)?;
+        }
+        Some(Commands::Claude { operation }) => {
+            cmd_claude(operation)?;
         }
         Some(Commands::Debug { operation }) => {
             cmd_debug(operation)?;
@@ -1129,10 +1285,283 @@ fn cmd_config(show_path: bool) -> Result<()> {
     Ok(())
 }
 
+/// Handle workflow commands.
+fn cmd_workflow(operation: WorkflowOperation) -> Result<()> {
+    use palrun::{
+        analyze_codebase, ExecutorConfig, PlanDoc, PlanGenerator, ProjectDoc, RoadmapDoc, StateDoc,
+        TaskExecutor,
+    };
+    use std::fs;
+
+    let cwd = std::env::current_dir()?;
+    let palrun_dir = cwd.join(".palrun");
+
+    match operation {
+        WorkflowOperation::Init { force } => {
+            println!("Initializing Palrun workflow documents...\n");
+
+            // Create .palrun directory
+            fs::create_dir_all(&palrun_dir)?;
+
+            // Create PROJECT.md
+            let project_path = palrun_dir.join("PROJECT.md");
+            if project_path.exists() && !force {
+                println!("  PROJECT.md already exists (use --force to overwrite)");
+            } else {
+                let project_name = cwd.file_name().and_then(|n| n.to_str()).unwrap_or("My Project");
+                let content = ProjectDoc::template(project_name);
+                fs::write(&project_path, content)?;
+                println!("  Created: {}", project_path.display());
+            }
+
+            // Create ROADMAP.md
+            let roadmap_path = palrun_dir.join("ROADMAP.md");
+            if roadmap_path.exists() && !force {
+                println!("  ROADMAP.md already exists (use --force to overwrite)");
+            } else {
+                let project_name = cwd.file_name().and_then(|n| n.to_str()).unwrap_or("Project");
+                let content = RoadmapDoc::template(project_name);
+                fs::write(&roadmap_path, content)?;
+                println!("  Created: {}", roadmap_path.display());
+            }
+
+            // Create STATE.md
+            let state_path = palrun_dir.join("STATE.md");
+            if state_path.exists() && !force {
+                println!("  STATE.md already exists (use --force to overwrite)");
+            } else {
+                let content = StateDoc::template();
+                fs::write(&state_path, content)?;
+                println!("  Created: {}", state_path.display());
+            }
+
+            println!("\nWorkflow initialized! Edit the files in .palrun/ to get started.");
+            println!("\nNext steps:");
+            println!("  1. Edit .palrun/PROJECT.md with your project vision");
+            println!("  2. Edit .palrun/ROADMAP.md with your phases");
+            println!("  3. Run: palrun workflow plan 1");
+        }
+
+        WorkflowOperation::Status => {
+            println!("Project Workflow Status\n");
+
+            // Load and show state
+            let state_path = palrun_dir.join("STATE.md");
+            if state_path.exists() {
+                let state = StateDoc::load(&state_path)?;
+                println!("Current Position:");
+                println!("  Phase: {}", state.current_phase);
+                println!("  Plan: {}", state.current_plan.as_deref().unwrap_or("none"));
+                println!("  Task: {}", state.current_task);
+                println!("  Status: {}", state.status);
+
+                if !state.blockers.is_empty() {
+                    println!("\nBlockers:");
+                    for blocker in &state.blockers {
+                        println!("  - {}", blocker);
+                    }
+                }
+            } else {
+                println!("No STATE.md found. Run: palrun workflow init");
+            }
+
+            // Load and show plan if exists
+            let plan_path = palrun_dir.join("PLAN.md");
+            if plan_path.exists() {
+                let plan = PlanDoc::load(&plan_path)?;
+                let (completed, total) = plan.progress();
+                println!("\nCurrent Plan: {}", plan.name);
+                println!("  Progress: {}/{} tasks", completed, total);
+
+                if let Some(next) = plan.next_task() {
+                    println!("  Next Task: {} - {}", next.id, next.name);
+                }
+            }
+        }
+
+        WorkflowOperation::Plan { phase, dry_run } => {
+            println!("Creating plan for Phase {}...\n", phase);
+
+            // Load roadmap
+            let roadmap_path = palrun_dir.join("ROADMAP.md");
+            if !roadmap_path.exists() {
+                anyhow::bail!("No ROADMAP.md found. Run: palrun workflow init");
+            }
+
+            let roadmap = RoadmapDoc::load(&roadmap_path)?;
+
+            // Find the phase
+            let phase_data = roadmap
+                .phases
+                .iter()
+                .find(|p| p.number == phase)
+                .ok_or_else(|| anyhow::anyhow!("Phase {} not found in roadmap", phase))?;
+
+            // Generate plan
+            let generator = PlanGenerator::new();
+            let plan = generator.generate_detailed(phase_data, phase, None);
+
+            if dry_run {
+                println!("Plan Preview:\n");
+                println!("{}", plan.to_markdown());
+            } else {
+                // Save plan
+                let plan_path = palrun_dir.join("PLAN.md");
+                fs::write(&plan_path, plan.to_markdown())?;
+                println!("Plan created: {}", plan_path.display());
+                println!("\nPlan: {} ({} tasks)", plan.name, plan.tasks.len());
+                for task in &plan.tasks {
+                    println!("  Task {}: {}", task.id, task.name);
+                }
+                println!("\nRun: palrun workflow execute");
+            }
+        }
+
+        WorkflowOperation::Execute { task, dry_run, provider: _ } => {
+            println!("Executing plan...\n");
+
+            // Load plan
+            let plan_path = palrun_dir.join("PLAN.md");
+            if !plan_path.exists() {
+                anyhow::bail!("No PLAN.md found. Run: palrun workflow plan <phase>");
+            }
+
+            let mut plan = PlanDoc::load(&plan_path)?;
+
+            // Create executor
+            let config = ExecutorConfig { dry_run, working_dir: cwd.clone(), ..Default::default() };
+            let executor = TaskExecutor::with_config(config);
+
+            // Execute
+            let results = if let Some(task_id) = task {
+                // Execute specific task
+                match executor.execute_task_by_id(&mut plan, task_id) {
+                    Some(result) => vec![result],
+                    None => {
+                        anyhow::bail!("Task {} not found", task_id);
+                    }
+                }
+            } else {
+                // Execute all pending tasks
+                executor.execute_plan(&mut plan)
+            };
+
+            // Show results
+            println!("Execution Results:\n");
+            for result in &results {
+                let status = if result.success { "✓" } else { "✗" };
+                println!("  {} Task {}: {}", status, result.task_id, result.output);
+            }
+
+            // Save updated plan
+            if !dry_run {
+                fs::write(&plan_path, plan.to_markdown())?;
+
+                let (completed, total) = plan.progress();
+                println!("\nProgress: {}/{} tasks completed", completed, total);
+
+                if plan.is_complete() {
+                    println!("\nPlan complete!");
+                }
+            }
+        }
+
+        WorkflowOperation::Verify { task } => {
+            println!("Running verification...\n");
+
+            // Load plan
+            let plan_path = palrun_dir.join("PLAN.md");
+            if !plan_path.exists() {
+                anyhow::bail!("No PLAN.md found. Run: palrun workflow plan <phase>");
+            }
+
+            let plan = PlanDoc::load(&plan_path)?;
+            let executor = TaskExecutor::new();
+
+            let tasks_to_verify: Vec<_> = if let Some(task_id) = task {
+                plan.tasks.iter().filter(|t| t.id == task_id).collect()
+            } else if let Some(current) = plan.next_task() {
+                vec![current]
+            } else {
+                vec![]
+            };
+
+            if tasks_to_verify.is_empty() {
+                println!("No tasks to verify.");
+                return Ok(());
+            }
+
+            for task in tasks_to_verify {
+                println!("Verifying Task {}: {}\n", task.id, task.name);
+
+                let results = executor.verify_task(task);
+                for result in results {
+                    let status = if result.passed { "✓" } else { "✗" };
+                    println!("  {} {}", status, result.step);
+                    if !result.passed && !result.output.is_empty() {
+                        println!("    {}", result.output);
+                    }
+                }
+            }
+        }
+
+        WorkflowOperation::Analyze { output } => {
+            println!("Analyzing codebase...\n");
+
+            let analysis = analyze_codebase(&cwd)?;
+
+            // Convert to markdown
+            let md = analysis.to_markdown();
+
+            let output_path = if let Some(ref path) = output {
+                std::path::PathBuf::from(path)
+            } else {
+                fs::create_dir_all(&palrun_dir)?;
+                palrun_dir.join("CODEBASE.md")
+            };
+
+            fs::write(&output_path, &md)?;
+            println!("Analysis saved to: {}", output_path.display());
+
+            // Show summary
+            println!("\nStack:");
+            for item in &analysis.stack {
+                println!("  {} ({})", item.name, item.category);
+            }
+
+            if !analysis.patterns.is_empty() {
+                println!("\nPatterns:");
+                for pattern in &analysis.patterns {
+                    println!("  - {}", pattern);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Handle AI commands.
 #[cfg(feature = "ai")]
 fn cmd_ai(operation: AiOperation) -> Result<()> {
     use palrun::ai::{AIManager, ProjectContext};
+
+    // Handle Chat operation - use inline mode for native terminal scrolling
+    if let AiOperation::Chat { prompt } = operation {
+        let mut app = palrun::App::new()?;
+
+        // Set initial prompt if provided
+        if let Some(p) = prompt {
+            app.ai_chat_input = p;
+        }
+
+        // Check Ollama status for AI
+        let status = check_ollama_status();
+        app.ai_status = Some(status);
+
+        // Run inline AI chat (Claude-like native scrolling)
+        return palrun::tui::run_ai_chat_inline(app);
+    }
 
     // Create tokio runtime for async operations
     let rt = tokio::runtime::Runtime::new()?;
@@ -1313,10 +1742,33 @@ fn cmd_ai(operation: AiOperation) -> Result<()> {
                     );
                 }
             }
+
+            AiOperation::Chat { .. } => {
+                // Chat is handled before the async block with an early return
+                unreachable!("Chat operation should be handled before async block");
+            }
         }
 
         Ok(())
     })
+}
+
+/// Check Ollama status for AI chat.
+#[cfg(feature = "ai")]
+fn check_ollama_status() -> String {
+    let base_url =
+        std::env::var("OLLAMA_HOST").unwrap_or_else(|_| "http://localhost:11434".to_string());
+
+    // Quick sync check
+    let client = reqwest::blocking::Client::new();
+    match client
+        .get(format!("{}/api/tags", base_url))
+        .timeout(std::time::Duration::from_secs(2))
+        .send()
+    {
+        Ok(resp) if resp.status().is_success() => "Ollama ready".to_string(),
+        _ => "Ollama not available".to_string(),
+    }
 }
 
 /// Handle Git hooks commands.
@@ -3463,6 +3915,338 @@ fn cmd_mcp(operation: McpOperation) -> Result<()> {
             println!("    name = \"filesystem\"");
             println!("    command = \"npx\"");
             println!("    args = [\"-y\", \"@modelcontextprotocol/server-filesystem\", \".\"]");
+        }
+    }
+
+    Ok(())
+}
+
+/// Handle slash command operations.
+fn cmd_slash(operation: SlashOperation) -> Result<()> {
+    use palrun::commands::{default_registry, PALRUN_COMMANDS};
+    use std::fs;
+
+    let registry = default_registry();
+
+    match operation {
+        SlashOperation::List => {
+            println!("Available Palrun Slash Commands:\n");
+
+            for cmd in PALRUN_COMMANDS.iter() {
+                println!("  /{}", cmd.name);
+                println!("    {}", cmd.description);
+                if !cmd.args.is_empty() {
+                    print!("    Args: ");
+                    let args: Vec<_> = cmd.args.iter().map(|a| a.name.as_str()).collect();
+                    println!("{}", args.join(", "));
+                }
+                println!();
+            }
+
+            println!("Total: {} commands", PALRUN_COMMANDS.len());
+        }
+
+        SlashOperation::Targets => {
+            println!("Available IDE Targets:\n");
+
+            for target in registry.targets() {
+                let detected = if target.detect() { " (detected)" } else { "" };
+                println!("  {} - {}{}", target.name(), target.display_name(), detected);
+                if let Ok(path) = target.install_path() {
+                    println!("    Install path: {}", path.display());
+                }
+            }
+
+            println!("\nTotal: {} targets", registry.targets().len());
+        }
+
+        SlashOperation::Generate { target, output, dry_run } => {
+            let target_impl = registry.get(&target).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Unknown target '{}'. Available: {}",
+                    target,
+                    registry.targets().iter().map(|t| t.name()).collect::<Vec<_>>().join(", ")
+                )
+            })?;
+
+            let output_dir = if let Some(ref out) = output {
+                std::path::PathBuf::from(out)
+            } else {
+                target_impl.install_path()?
+            };
+
+            println!(
+                "Generating {} slash commands for {}...\n",
+                PALRUN_COMMANDS.len(),
+                target_impl.display_name()
+            );
+
+            for cmd in PALRUN_COMMANDS.iter() {
+                let content = target_impl.generate(cmd)?;
+                let filename = format!("{}.{}", cmd.name, target_impl.file_extension());
+                let path = output_dir.join(&filename);
+
+                if dry_run {
+                    println!("Would create: {}", path.display());
+                    println!("---");
+                    println!("{}", content);
+                    println!();
+                } else {
+                    fs::create_dir_all(&output_dir)?;
+                    fs::write(&path, &content)?;
+                    println!("  Created: {}", path.display());
+                }
+            }
+
+            if !dry_run {
+                println!(
+                    "\nGenerated {} commands to {}",
+                    PALRUN_COMMANDS.len(),
+                    output_dir.display()
+                );
+            }
+        }
+
+        SlashOperation::Install { force, dry_run } => {
+            println!("Installing slash commands to detected IDEs...\n");
+
+            let mut installed_count = 0;
+
+            for target in registry.targets() {
+                if !target.detect() {
+                    continue;
+                }
+
+                let output_dir = match target.install_path() {
+                    Ok(p) => p,
+                    Err(e) => {
+                        println!("  Skipping {} ({})", target.display_name(), e);
+                        continue;
+                    }
+                };
+
+                println!("  {} ({})", target.display_name(), output_dir.display());
+
+                for cmd in PALRUN_COMMANDS.iter() {
+                    let content = match target.generate(cmd) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            println!("    Error generating {}: {}", cmd.name, e);
+                            continue;
+                        }
+                    };
+
+                    let filename = format!("{}.{}", cmd.name, target.file_extension());
+                    let path = output_dir.join(&filename);
+
+                    if path.exists() && !force {
+                        if dry_run {
+                            println!("    Would skip (exists): {}", filename);
+                        }
+                        continue;
+                    }
+
+                    if dry_run {
+                        println!("    Would create: {}", filename);
+                    } else {
+                        if let Err(e) = fs::create_dir_all(&output_dir) {
+                            println!("    Error creating directory: {}", e);
+                            continue;
+                        }
+                        if let Err(e) = fs::write(&path, &content) {
+                            println!("    Error writing {}: {}", filename, e);
+                            continue;
+                        }
+                        installed_count += 1;
+                    }
+                }
+            }
+
+            if !dry_run {
+                println!("\nInstalled {} command files", installed_count);
+            }
+        }
+
+        SlashOperation::Show { command, target } => {
+            let cmd = PALRUN_COMMANDS.iter().find(|c| c.name == command).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Unknown command '{}'. Use 'palrun slash list' to see available commands.",
+                    command
+                )
+            })?;
+
+            let target_impl = registry.get(&target).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Unknown target '{}'. Use 'palrun slash targets' to see available targets.",
+                    target
+                )
+            })?;
+
+            let content = target_impl.generate(cmd)?;
+            println!("Command: /{} (for {})\n", cmd.name, target_impl.display_name());
+            println!("{}", content);
+        }
+    }
+
+    Ok(())
+}
+
+/// Handle Claude AI setup commands.
+fn cmd_claude(operation: ClaudeOperation) -> Result<()> {
+    use std::fs;
+
+    let cwd = std::env::current_dir()?;
+
+    match operation {
+        ClaudeOperation::Init { force, dry_run, recursive } => {
+            println!("Initializing Claude AI configuration...\n");
+
+            // Detect project info
+            let project_name = cwd
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "project".to_string());
+
+            // Check for existing project files to determine type
+            let is_rust = cwd.join("Cargo.toml").exists();
+            let is_node = cwd.join("package.json").exists();
+            let is_python = cwd.join("pyproject.toml").exists() || cwd.join("setup.py").exists();
+            let is_go = cwd.join("go.mod").exists();
+
+            let lang = if is_rust {
+                "Rust"
+            } else if is_node {
+                "TypeScript/JavaScript"
+            } else if is_python {
+                "Python"
+            } else if is_go {
+                "Go"
+            } else {
+                "Unknown"
+            };
+
+            // Generate root CLAUDE.md content
+            let root_content = format!(
+                r#"# {}
+
+## Project Overview
+This is a {} project.
+
+## Key Commands
+- `palrun` - Open the command palette
+- `palrun list` - List all available commands
+- `palrun ai agent` - Start an AI agent session
+
+## Project Structure
+Describe your project's main directories and their purposes here.
+
+## Development Guidelines
+Add your coding standards and best practices here.
+
+## Important Files
+List key files that Claude should know about.
+"#,
+                project_name, lang
+            );
+
+            let claude_md_path = cwd.join("CLAUDE.md");
+
+            if claude_md_path.exists() && !force {
+                println!("  CLAUDE.md already exists (use --force to overwrite)");
+            } else if dry_run {
+                println!("  Would create: CLAUDE.md");
+                println!("\n--- Content Preview ---\n{}", root_content);
+            } else {
+                fs::write(&claude_md_path, &root_content)?;
+                println!("  Created: CLAUDE.md");
+            }
+
+            // Create directory-specific CLAUDE.md files if recursive
+            if recursive {
+                let key_dirs = ["src", "docs", "tests", "examples", "lib"];
+
+                for dir in key_dirs {
+                    let dir_path = cwd.join(dir);
+                    if dir_path.exists() && dir_path.is_dir() {
+                        let dir_claude_md = dir_path.join("CLAUDE.md");
+
+                        let dir_content = format!(
+                            r#"# {} Directory
+
+## Purpose
+Describe what this directory contains.
+
+## Key Files
+List important files in this directory.
+
+## Guidelines
+Add directory-specific guidelines here.
+"#,
+                            dir
+                        );
+
+                        if dir_claude_md.exists() && !force {
+                            println!(
+                                "  {}/CLAUDE.md already exists (use --force to overwrite)",
+                                dir
+                            );
+                        } else if dry_run {
+                            println!("  Would create: {}/CLAUDE.md", dir);
+                        } else {
+                            fs::write(&dir_claude_md, &dir_content)?;
+                            println!("  Created: {}/CLAUDE.md", dir);
+                        }
+                    }
+                }
+            }
+
+            if !dry_run {
+                println!("\nClaude AI configuration initialized!");
+                println!("\nNext steps:");
+                println!("  1. Edit CLAUDE.md to describe your project");
+                println!("  2. Run 'palrun ai agent' to start working with Claude");
+            }
+        }
+
+        ClaudeOperation::Status => {
+            println!("Claude AI Configuration Status:\n");
+
+            let claude_md_path = cwd.join("CLAUDE.md");
+            let claude_dir = cwd.join(".claude");
+
+            if claude_md_path.exists() {
+                println!("  CLAUDE.md: Found");
+                if let Ok(metadata) = fs::metadata(&claude_md_path) {
+                    println!("    Size: {} bytes", metadata.len());
+                }
+            } else {
+                println!("  CLAUDE.md: Not found");
+                println!("    Run 'palrun claude init' to create one");
+            }
+
+            if claude_dir.exists() {
+                println!("  .claude/: Found (Claude project directory)");
+            } else {
+                println!("  .claude/: Not found");
+            }
+
+            // Check for directory-specific CLAUDE.md files
+            let key_dirs = ["src", "docs", "tests", "examples", "lib"];
+            let mut found_dirs = Vec::new();
+
+            for dir in key_dirs {
+                let dir_claude_md = cwd.join(dir).join("CLAUDE.md");
+                if dir_claude_md.exists() {
+                    found_dirs.push(dir);
+                }
+            }
+
+            if !found_dirs.is_empty() {
+                println!("\n  Directory-specific CLAUDE.md files:");
+                for dir in found_dirs {
+                    println!("    - {}/CLAUDE.md", dir);
+                }
+            }
         }
     }
 
