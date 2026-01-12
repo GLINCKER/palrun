@@ -1,6 +1,6 @@
 [package]
 name = "palrun"
-version = "0.2.0-beta.1"
+version = "0.2.0-beta.2"
 edition = "2021"
 rust-version = "1.82"
 default-run = "palrun"
@@ -10,7 +10,7 @@ license = "MIT"
 repository = "https://github.com/GLINCKER/palrun"
 homepage = "https://glinr.com/palrun"
 readme = "README.md"
-keywords = ["cli", "terminal", "tui", "command-palette", "ai", "monorepo", "productivity"]
+keywords = ["cli", "terminal", "tui", "command-palette", "productivity"]
 categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]

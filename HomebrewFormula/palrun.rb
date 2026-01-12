@@ -1,7 +1,7 @@
 class Palrun < Formula
   desc "AI command palette for your terminal - discover and run project commands instantly"
   homepage "https://github.com/GLINCKER/palrun"
-  version "0.2.0-beta.1"
+  version "0.2.0-beta.2"
   license "MIT"
 
   on_macos do

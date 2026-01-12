@@ -1,6 +1,6 @@
 {
   "name": "@glincker/palrun",
-  "version": "0.2.0-beta.1",
+  "version": "0.2.0-beta.2",
   "description": "AI command palette for your terminal - discover and run project commands instantly",
   "keywords": [
     "cli",
