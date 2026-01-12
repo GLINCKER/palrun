@@ -1,6 +1,6 @@
 [package]
 name = "palrun"
-version = "0.2.0-beta.2"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.82"
 default-run = "palrun"
@@ -100,6 +100,9 @@ insta = { version = "1", features = ["yaml"] }
 
 # Async Testing
 tokio-test = "0.4"
+
+# Serial test execution for env var tests
+serial_test = "3"
 
 # Benchmarking
 criterion = { version = "0.5", features = ["html_reports"] }

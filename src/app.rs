@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use crate::core::{
     send_notification, BackgroundEvent, BackgroundManager, CaptureManager, ChainExecutor,
     ChainStepStatus, Command, CommandChain, CommandContext, CommandRegistry, Config, ContextFilter,
-    HistoryManager, ParsedQuery,
+    HistoryManager, ParsedQuery, TrustStore,
 };
 use crate::tui::Theme;
 
@@ -139,6 +139,67 @@ pub struct App {
 
     /// Resilience manager for retry and circuit breaker logic
     pub resilience: crate::core::ResilienceManager,
+
+    /// Workflow context for GSD-style project management
+    pub workflow_context: Option<crate::workflow::WorkflowContext>,
+
+    /// AI chat input buffer
+    #[cfg(feature = "ai")]
+    pub ai_chat_input: String,
+
+    /// AI chat history for current session
+    #[cfg(feature = "ai")]
+    pub ai_chat_history: Vec<(String, String)>,
+
+    /// Available AI models (from Ollama)
+    #[cfg(feature = "ai")]
+    pub ai_models: Vec<OllamaModel>,
+
+    /// Whether AI models are being loaded
+    #[cfg(feature = "ai")]
+    pub ai_models_loading: bool,
+
+    /// Selected model index in AI setup
+    #[cfg(feature = "ai")]
+    pub ai_model_selected: usize,
+
+    /// Pull progress message for downloading models
+    #[cfg(feature = "ai")]
+    pub ai_pull_progress: Option<String>,
+
+    /// Input for pulling new models
+    #[cfg(feature = "ai")]
+    pub ai_model_input: String,
+
+    /// Pending delete confirmation (model name to delete)
+    #[cfg(feature = "ai")]
+    pub ai_delete_pending: Option<String>,
+
+    /// Whether AI is currently thinking/processing
+    #[cfg(feature = "ai")]
+    pub ai_thinking: bool,
+
+    /// Scroll position for AI chat history
+    #[cfg(feature = "ai")]
+    pub ai_chat_scroll: usize,
+
+    /// Animation frame for spinner (increments on tick)
+    pub spinner_frame: usize,
+
+    /// Trust store for managing directory trust
+    pub trust_store: TrustStore,
+
+    /// Selected option in trust confirmation dialog (0 = Yes, 1 = No)
+    pub trust_selected: usize,
+}
+
+/// Represents an Ollama model
+#[cfg(feature = "ai")]
+#[derive(Debug, Clone)]
+pub struct OllamaModel {
+    pub name: String,
+    pub size: u64,
+    pub modified_at: String,
 }
 
 /// A slash command entry
@@ -161,6 +222,13 @@ fn get_slash_commands() -> Vec<SlashCommand> {
         SlashCommand::new("/history", "View command history"),
         SlashCommand::new("/analytics", "View usage analytics"),
         SlashCommand::new("/favorites", "Show favorite commands"),
+        SlashCommand::new("/workflow", "Open workflow dashboard"),
+        SlashCommand::new("/plan", "Show current task plan"),
+        SlashCommand::new("/roadmap", "Show project roadmap"),
+        #[cfg(feature = "ai")]
+        SlashCommand::new("/ai", "Open AI chat mode"),
+        #[cfg(feature = "ai")]
+        SlashCommand::new("/models", "Manage AI models"),
         SlashCommand::new("/settings", "Open settings"),
         SlashCommand::new("/theme", "Change color theme"),
         SlashCommand::new("/quit", "Exit palrun"),
@@ -231,6 +299,20 @@ pub enum AppMode {
 
     /// Context menu for selected command
     ContextMenu,
+
+    /// AI chat mode for natural language interaction
+    #[cfg(feature = "ai")]
+    AiChat,
+
+    /// AI setup mode for managing models
+    #[cfg(feature = "ai")]
+    AiSetup,
+
+    /// Workflow mode showing project context and tasks
+    Workflow,
+
+    /// Trust confirmation dialog for new directories
+    TrustConfirmation,
 }
 
 impl App {
@@ -254,6 +336,13 @@ impl App {
         // Resolve theme from config
         let theme = Self::resolve_theme(&config);
 
+        // Load trust store and check if directory is trusted
+        let trust_store = TrustStore::load().unwrap_or_default();
+        let is_trusted = trust_store.is_trusted(&cwd);
+
+        // Start in trust confirmation mode if directory not trusted
+        let initial_mode = if is_trusted { AppMode::default() } else { AppMode::TrustConfirmation };
+
         Ok(Self {
             input: String::new(),
             cursor_position: 0,
@@ -264,7 +353,7 @@ impl App {
             command_selected: false,
             cwd,
             config,
-            mode: AppMode::default(),
+            mode: initial_mode,
             status_message: None,
             context,
             context_aware: true,
@@ -294,6 +383,30 @@ impl App {
             degradation: crate::core::DegradationManager::new(),
             offline_manager: crate::core::OfflineManager::new(),
             resilience: crate::core::ResilienceManager::new(),
+            workflow_context: None,
+            #[cfg(feature = "ai")]
+            ai_chat_input: String::new(),
+            #[cfg(feature = "ai")]
+            ai_chat_history: Vec::new(),
+            #[cfg(feature = "ai")]
+            ai_models: Vec::new(),
+            #[cfg(feature = "ai")]
+            ai_models_loading: false,
+            #[cfg(feature = "ai")]
+            ai_model_selected: 0,
+            #[cfg(feature = "ai")]
+            ai_pull_progress: None,
+            #[cfg(feature = "ai")]
+            ai_model_input: String::new(),
+            #[cfg(feature = "ai")]
+            ai_delete_pending: None,
+            #[cfg(feature = "ai")]
+            ai_thinking: false,
+            #[cfg(feature = "ai")]
+            ai_chat_scroll: 0,
+            spinner_frame: 0,
+            trust_store,
+            trust_selected: 0,
         })
     }
 
@@ -420,6 +533,30 @@ impl App {
             degradation: crate::core::DegradationManager::new(),
             offline_manager: crate::core::OfflineManager::new(),
             resilience: crate::core::ResilienceManager::new(),
+            workflow_context: None,
+            #[cfg(feature = "ai")]
+            ai_chat_input: String::new(),
+            #[cfg(feature = "ai")]
+            ai_chat_history: Vec::new(),
+            #[cfg(feature = "ai")]
+            ai_models: Vec::new(),
+            #[cfg(feature = "ai")]
+            ai_models_loading: false,
+            #[cfg(feature = "ai")]
+            ai_model_selected: 0,
+            #[cfg(feature = "ai")]
+            ai_pull_progress: None,
+            #[cfg(feature = "ai")]
+            ai_model_input: String::new(),
+            #[cfg(feature = "ai")]
+            ai_delete_pending: None,
+            #[cfg(feature = "ai")]
+            ai_thinking: false,
+            #[cfg(feature = "ai")]
+            ai_chat_scroll: 0,
+            spinner_frame: 0,
+            trust_store: TrustStore::default(),
+            trust_selected: 0,
         }
     }
 
@@ -753,6 +890,11 @@ impl App {
             "/analytics" => self.show_analytics(),
             "/quit" => self.quit(),
             "/favorites" => self.set_status("Favorites: coming soon!"),
+            "/workflow" | "/plan" | "/roadmap" => self.show_workflow(),
+            #[cfg(feature = "ai")]
+            "/ai" => self.show_ai_chat(),
+            #[cfg(feature = "ai")]
+            "/models" => self.show_ai_setup(),
             "/settings" => self.set_status("Settings: coming soon!"),
             "/theme" => self.set_status("Theme picker: coming soon!"),
             _ => {}
@@ -904,7 +1046,29 @@ impl App {
 
     /// Perform periodic updates (called on tick).
     pub fn tick(&mut self) {
+        // Update spinner animation frame
+        self.spinner_frame = self.spinner_frame.wrapping_add(1);
         // Future: Update file watchers, refresh commands, etc.
+    }
+
+    /// Get the current spinner character for loading animations.
+    pub fn spinner_char(&self) -> char {
+        const SPINNER: &[char] = &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+        SPINNER[self.spinner_frame % SPINNER.len()]
+    }
+
+    /// Get dynamic thinking message (rotates through different messages).
+    #[cfg(feature = "ai")]
+    pub fn thinking_message(&self) -> &'static str {
+        const MESSAGES: &[&str] = &[
+            "Thinking...",
+            "Processing...",
+            "Analyzing...",
+            "Generating response...",
+            "Working on it...",
+        ];
+        // Change message every ~20 frames (slower rotation)
+        MESSAGES[(self.spinner_frame / 20) % MESSAGES.len()]
     }
 
     /// Refresh Git information.
@@ -1891,6 +2055,366 @@ impl App {
     pub fn next_tip(&mut self) {
         self.tip_index = (self.tip_index + 1) % 6;
     }
+
+    // --- Workflow mode methods ---
+
+    /// Show the workflow dashboard.
+    pub fn show_workflow(&mut self) {
+        // Load workflow context if not already loaded
+        if self.workflow_context.is_none() {
+            self.load_workflow_context();
+        }
+        self.mode = AppMode::Workflow;
+    }
+
+    /// Dismiss the workflow dashboard and return to normal mode.
+    pub fn dismiss_workflow(&mut self) {
+        self.mode = AppMode::Normal;
+    }
+
+    /// Check if workflow is currently shown.
+    pub fn is_workflow_shown(&self) -> bool {
+        matches!(self.mode, AppMode::Workflow)
+    }
+
+    /// Load workflow context from current directory.
+    pub fn load_workflow_context(&mut self) {
+        match crate::workflow::WorkflowContext::load(&self.cwd) {
+            Ok(ctx) => {
+                self.workflow_context = Some(ctx);
+            }
+            Err(_) => {
+                // No workflow documents found, that's OK
+                self.workflow_context = None;
+            }
+        }
+    }
+
+    /// Get workflow status summary for display.
+    pub fn workflow_summary(&self) -> Option<String> {
+        self.workflow_context.as_ref().map(|ctx| {
+            let mut summary = String::new();
+            if let Some(ref project) = ctx.project {
+                summary.push_str(&format!("Project: {}\n", project.name));
+            }
+            if let Some(ref roadmap) = ctx.roadmap {
+                let completed = roadmap
+                    .phases
+                    .iter()
+                    .filter(|p| matches!(p.status, crate::workflow::PhaseStatus::Completed))
+                    .count();
+                summary.push_str(&format!(
+                    "Roadmap: {}/{} phases\n",
+                    completed,
+                    roadmap.phases.len()
+                ));
+            }
+            if let Some(ref state) = ctx.state {
+                summary.push_str(&format!("Current: Phase {}\n", state.current_phase));
+            }
+            summary
+        })
+    }
+
+    // --- AI Chat mode methods ---
+
+    /// Show the AI chat mode.
+    #[cfg(feature = "ai")]
+    pub fn show_ai_chat(&mut self) {
+        self.ai_chat_input.clear();
+        self.mode = AppMode::AiChat;
+    }
+
+    /// Dismiss the AI chat mode and return to normal.
+    #[cfg(feature = "ai")]
+    pub fn dismiss_ai_chat(&mut self) {
+        self.mode = AppMode::Normal;
+    }
+
+    /// Check if AI chat is currently shown.
+    #[cfg(feature = "ai")]
+    pub fn is_ai_chat_shown(&self) -> bool {
+        matches!(self.mode, AppMode::AiChat)
+    }
+
+    /// Scroll AI chat up.
+    #[cfg(feature = "ai")]
+    pub fn ai_chat_scroll_up(&mut self) {
+        self.ai_chat_scroll = self.ai_chat_scroll.saturating_add(1);
+    }
+
+    /// Scroll AI chat down.
+    #[cfg(feature = "ai")]
+    pub fn ai_chat_scroll_down(&mut self) {
+        self.ai_chat_scroll = self.ai_chat_scroll.saturating_sub(1);
+    }
+
+    /// Auto-scroll AI chat to bottom (latest message).
+    #[cfg(feature = "ai")]
+    pub fn ai_chat_scroll_to_bottom(&mut self) {
+        self.ai_chat_scroll = 0;
+    }
+
+    // --- AI Setup mode methods ---
+
+    /// Show the AI setup mode (model management).
+    #[cfg(feature = "ai")]
+    pub fn show_ai_setup(&mut self) {
+        self.ai_model_input.clear();
+        self.ai_model_selected = 0;
+        self.ai_pull_progress = None;
+        self.mode = AppMode::AiSetup;
+        // Trigger model list refresh
+        self.refresh_ai_models();
+    }
+
+    /// Dismiss the AI setup mode and return to normal.
+    #[cfg(feature = "ai")]
+    pub fn dismiss_ai_setup(&mut self) {
+        self.mode = AppMode::Normal;
+    }
+
+    /// Check if AI setup is currently shown.
+    #[cfg(feature = "ai")]
+    pub fn is_ai_setup_shown(&self) -> bool {
+        matches!(self.mode, AppMode::AiSetup)
+    }
+
+    /// Refresh the list of available AI models from Ollama.
+    #[cfg(feature = "ai")]
+    pub fn refresh_ai_models(&mut self) {
+        self.ai_models_loading = true;
+        self.ai_models.clear();
+
+        // Create runtime for async call
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build();
+
+        match rt {
+            Ok(runtime) => {
+                let result = runtime.block_on(async { list_ollama_models().await });
+
+                match result {
+                    Ok(models) => {
+                        self.ai_models = models;
+                        self.ai_models_loading = false;
+                    }
+                    Err(e) => {
+                        self.ai_models_loading = false;
+                        self.set_status(format!("Failed to list models: {}", e));
+                    }
+                }
+            }
+            Err(_) => {
+                self.ai_models_loading = false;
+                self.set_status("Failed to create async runtime");
+            }
+        }
+    }
+
+    /// Pull/download a new AI model.
+    #[cfg(feature = "ai")]
+    pub fn pull_ai_model(&mut self, model_name: &str) {
+        if model_name.is_empty() {
+            self.set_status("Please enter a model name");
+            return;
+        }
+
+        let model = model_name.to_string();
+        self.ai_pull_progress = Some(format!("Pulling {}...", model));
+        self.set_status(format!("Starting download of {}...", model));
+
+        // Create runtime for async call
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build();
+
+        match rt {
+            Ok(runtime) => {
+                let result = runtime.block_on(async { pull_ollama_model(&model).await });
+
+                match result {
+                    Ok(_) => {
+                        self.ai_pull_progress = None;
+                        self.set_status(format!("Successfully pulled {}", model));
+                        self.ai_model_input.clear();
+                        // Refresh the model list
+                        self.refresh_ai_models();
+                    }
+                    Err(e) => {
+                        self.ai_pull_progress = None;
+                        self.set_status(format!("Failed to pull {}: {}", model, e));
+                    }
+                }
+            }
+            Err(_) => {
+                self.ai_pull_progress = None;
+                self.set_status("Failed to create async runtime");
+            }
+        }
+    }
+
+    /// Request to delete an AI model (requires confirmation).
+    #[cfg(feature = "ai")]
+    pub fn request_delete_ai_model(&mut self) {
+        if let Some(model) = self.ai_models.get(self.ai_model_selected) {
+            // Set pending delete - user must press 'd' again to confirm
+            self.ai_delete_pending = Some(model.name.clone());
+            self.set_status(format!("Press 'd' again to delete {}, Esc to cancel", model.name));
+        }
+    }
+
+    /// Cancel pending delete.
+    #[cfg(feature = "ai")]
+    pub fn cancel_delete_ai_model(&mut self) {
+        if self.ai_delete_pending.is_some() {
+            self.ai_delete_pending = None;
+            self.set_status("Delete cancelled");
+        }
+    }
+
+    /// Confirm and execute the pending delete.
+    #[cfg(feature = "ai")]
+    pub fn confirm_delete_ai_model(&mut self) {
+        if let Some(model_name) = self.ai_delete_pending.take() {
+            // Create runtime for async call
+            let rt = tokio::runtime::Builder::new_current_thread().enable_all().build();
+
+            match rt {
+                Ok(runtime) => {
+                    let result = runtime.block_on(async { delete_ollama_model(&model_name).await });
+
+                    match result {
+                        Ok(_) => {
+                            self.set_status(format!("Deleted {}", model_name));
+                            // Refresh the model list
+                            self.refresh_ai_models();
+                            // Adjust selection
+                            if self.ai_model_selected > 0 {
+                                self.ai_model_selected -= 1;
+                            }
+                        }
+                        Err(e) => {
+                            self.set_status(format!("Failed to delete {}: {}", model_name, e));
+                        }
+                    }
+                }
+                Err(_) => {
+                    self.set_status("Failed to create async runtime");
+                }
+            }
+        }
+    }
+
+    /// Set the selected model as the default OLLAMA_MODEL.
+    #[cfg(feature = "ai")]
+    pub fn use_selected_model(&mut self) {
+        if let Some(model) = self.ai_models.get(self.ai_model_selected).cloned() {
+            std::env::set_var("OLLAMA_MODEL", &model.name);
+            self.set_status(format!("Now using {} as default model", model.name));
+            // Update AI status
+            self.ai_status = Some(format!("Ollama ({})", model.name));
+        }
+    }
+}
+
+/// List available Ollama models.
+#[cfg(feature = "ai")]
+async fn list_ollama_models() -> anyhow::Result<Vec<OllamaModel>> {
+    let client = reqwest::Client::new();
+    let base_url =
+        std::env::var("OLLAMA_HOST").unwrap_or_else(|_| "http://localhost:11434".to_string());
+
+    #[derive(serde::Deserialize)]
+    struct OllamaListResponse {
+        models: Vec<OllamaModelInfo>,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct OllamaModelInfo {
+        name: String,
+        size: u64,
+        modified_at: String,
+    }
+
+    let response = client
+        .get(format!("{}/api/tags", base_url))
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            anyhow::bail!("Ollama not running. Start with: ollama serve");
+        }
+        anyhow::bail!("Ollama error: {}", response.status());
+    }
+
+    let result: OllamaListResponse = response.json().await?;
+
+    Ok(result
+        .models
+        .into_iter()
+        .map(|m| OllamaModel { name: m.name, size: m.size, modified_at: m.modified_at })
+        .collect())
+}
+
+/// Pull/download an Ollama model.
+#[cfg(feature = "ai")]
+async fn pull_ollama_model(model: &str) -> anyhow::Result<()> {
+    let client = reqwest::Client::new();
+    let base_url =
+        std::env::var("OLLAMA_HOST").unwrap_or_else(|_| "http://localhost:11434".to_string());
+
+    #[derive(serde::Serialize)]
+    struct PullRequest {
+        name: String,
+        stream: bool,
+    }
+
+    let request = PullRequest { name: model.to_string(), stream: false };
+
+    let response = client
+        .post(format!("{}/api/pull", base_url))
+        .json(&request)
+        .timeout(std::time::Duration::from_secs(600)) // 10 minutes for large models
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let text = response.text().await.unwrap_or_default();
+        anyhow::bail!("Pull failed ({}): {}", status, text);
+    }
+
+    Ok(())
+}
+
+/// Delete an Ollama model.
+#[cfg(feature = "ai")]
+async fn delete_ollama_model(model: &str) -> anyhow::Result<()> {
+    let client = reqwest::Client::new();
+    let base_url =
+        std::env::var("OLLAMA_HOST").unwrap_or_else(|_| "http://localhost:11434".to_string());
+
+    #[derive(serde::Serialize)]
+    struct DeleteRequest {
+        name: String,
+    }
+
+    let request = DeleteRequest { name: model.to_string() };
+
+    let response = client
+        .delete(format!("{}/api/delete", base_url))
+        .json(&request)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let text = response.text().await.unwrap_or_default();
+        anyhow::bail!("Delete failed ({}): {}", status, text);
+    }
+
+    Ok(())
 }
 
 impl Default for App {
@@ -1937,6 +2461,30 @@ impl Default for App {
                 degradation: crate::core::DegradationManager::new(),
                 offline_manager: crate::core::OfflineManager::new(),
                 resilience: crate::core::ResilienceManager::new(),
+                workflow_context: None,
+                #[cfg(feature = "ai")]
+                ai_chat_input: String::new(),
+                #[cfg(feature = "ai")]
+                ai_chat_history: Vec::new(),
+                #[cfg(feature = "ai")]
+                ai_models: Vec::new(),
+                #[cfg(feature = "ai")]
+                ai_models_loading: false,
+                #[cfg(feature = "ai")]
+                ai_model_selected: 0,
+                #[cfg(feature = "ai")]
+                ai_pull_progress: None,
+                #[cfg(feature = "ai")]
+                ai_model_input: String::new(),
+                #[cfg(feature = "ai")]
+                ai_delete_pending: None,
+                #[cfg(feature = "ai")]
+                ai_thinking: false,
+                #[cfg(feature = "ai")]
+                ai_chat_scroll: 0,
+                spinner_frame: 0,
+                trust_store: TrustStore::default(),
+                trust_selected: 0,
             }
         })
     }

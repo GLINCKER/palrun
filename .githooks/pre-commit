@@ -1,0 +1,48 @@
+#!/bin/bash
+# Pre-commit hook: Fast quality checks
+# Runs: format check, lint (fast mode), basic tests
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo -e "${YELLOW}Running pre-commit checks...${NC}"
+
+# 1. Format check (fast)
+echo -n "  Checking format... "
+if cargo fmt --all --check > /dev/null 2>&1; then
+    echo -e "${GREEN}OK${NC}"
+else
+    echo -e "${RED}FAILED${NC}"
+    echo ""
+    echo "Format issues found. Run 'cargo fmt' to fix."
+    exit 1
+fi
+
+# 2. Clippy lint (fast mode - only changed files would be better but this is still fast with cache)
+echo -n "  Running clippy... "
+if cargo clippy --all-features --quiet -- -D clippy::correctness -D clippy::suspicious 2>/dev/null; then
+    echo -e "${GREEN}OK${NC}"
+else
+    echo -e "${RED}FAILED${NC}"
+    echo ""
+    echo "Clippy found issues. Run 'cargo clippy --all-features' to see details."
+    exit 1
+fi
+
+# 3. Quick compile check (catches type errors)
+echo -n "  Checking build... "
+if cargo check --all-features --quiet 2>/dev/null; then
+    echo -e "${GREEN}OK${NC}"
+else
+    echo -e "${RED}FAILED${NC}"
+    echo ""
+    echo "Build check failed. Run 'cargo check --all-features' to see errors."
+    exit 1
+fi
+
+echo -e "${GREEN}All pre-commit checks passed!${NC}"

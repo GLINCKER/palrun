@@ -188,13 +188,9 @@ mod tests {
 
     #[test]
     fn test_project_context_creation() {
-        let context = ProjectContext {
-            project_name: "test".to_string(),
-            project_type: "node".to_string(),
-            available_commands: vec!["npm run build".to_string()],
-            current_directory: PathBuf::from("."),
-            recent_commands: vec![],
-        };
+        let mut context = ProjectContext::new("test", PathBuf::from("."));
+        context.project_type = "node".to_string();
+        context.available_commands = vec!["npm run build".to_string()];
 
         assert_eq!(context.project_name, "test");
     }

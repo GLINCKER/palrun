@@ -1,324 +1,336 @@
+<div align="center">
+
 # PALRUN
 
-Project-aware command palette for your terminal with AI-powered intelligence.
+**Stop memorizing commands. Start shipping.**
 
-[![CI](https://github.com/GLINCKER/palrun/actions/workflows/ci.yml/badge.svg)](https://github.com/GLINCKER/palrun/actions/workflows/ci.yml)
-[![Release](https://github.com/GLINCKER/palrun/actions/workflows/release.yml/badge.svg)](https://github.com/GLINCKER/palrun/actions/workflows/release.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
-[![Crates.io](https://img.shields.io/crates/v/palrun.svg)](https://crates.io/crates/palrun)
+A blazing-fast command palette for your terminal with multi-provider AI intelligence.
 
-## Why Palrun?
+[![Crates.io](https://img.shields.io/crates/v/palrun?style=for-the-badge&logo=rust&logoColor=white&color=orange)](https://crates.io/crates/palrun)
+[![Downloads](https://img.shields.io/crates/d/palrun?style=for-the-badge&logo=rust&logoColor=white&color=orange)](https://crates.io/crates/palrun)
+[![CI](https://img.shields.io/github/actions/workflow/status/GLINCKER/palrun/ci.yml?style=for-the-badge&logo=github&label=CI)](https://github.com/GLINCKER/palrun/actions)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
 
-Stop memorizing commands. Palrun automatically discovers every command available in your project and presents them in a blazing-fast fuzzy-searchable interface. Whether you're working with npm, cargo, make, docker, or any of 9+ supported project types, Palrun knows what you can run.
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              PALRUN v0.1.0                                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   Project Scan ──► Command Discovery ──► Fuzzy Search ──► Execute          │
-│                    (9+ types)             (nucleo)         (context-aware)  │
-│                                                                             │
-│   Cargo.toml   ──► cargo build, test    ──► "bui"     ──► cargo build      │
-│   package.json ──► npm run dev, test    ──► "dev"     ──► npm run dev      │
-│   Makefile     ──► make all, clean      ──► "cle"     ──► make clean       │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-## Features
-
-### Core Capabilities
-
-- **Project-Aware Discovery**: Automatically detects commands from 9+ project types
-- **Fuzzy Search**: Lightning-fast fuzzy matching powered by nucleo engine
-- **Context-Aware Sorting**: Commands sorted by proximity to your current directory
-- **Cross-Platform**: Works on macOS, Linux, and Windows
-- **Shell Integration**: Keyboard shortcuts for instant access
-- **TUI Interface**: Beautiful terminal UI with keyboard navigation
-- **Plugin System**: Extensible architecture for custom scanners
-
-### Supported Project Types
-
-| Project Type | Config Files | Commands Generated |
-|-------------|--------------|-------------------|
-| NPM/Yarn/PNPM/Bun | `package.json` | npm/yarn/pnpm/bun scripts |
-| Rust | `Cargo.toml` | cargo build, test, run, clippy |
-| Go | `go.mod` | go build, test, run |
-| Python | `pyproject.toml`, `requirements.txt` | pytest, pip, poetry, pdm |
-| Make | `Makefile` | make targets |
-| Task | `Taskfile.yml` | task commands |
-| Docker | `docker-compose.yml` | docker compose up/down/logs |
-| Nx | `nx.json` | nx build, serve, test |
-| Turborepo | `turbo.json` | turbo run tasks |
-
-## Installation
-
-### Using Cargo
+<br>
 
 ```bash
+brew install GLINCKER/palrun/palrun
+```
+
+**Works on Mac, Windows, and Linux.**
+
+<br>
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  PALRUN                                          [rust] main ✓    │
+├────────────────────────────────────────────────────────────────────┤
+│  > build                                                          │
+├────────────────────────────────────────────────────────────────────┤
+│  → cargo build              Build the project                     │
+│    cargo build --release    Build optimized binary                │
+│    npm run build            Bundle frontend                       │
+│    make build               Run makefile target                   │
+├────────────────────────────────────────────────────────────────────┤
+│  ↑↓ navigate  ⏎ execute  tab preview  esc quit                    │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+<br>
+
+*"Finally stopped grepping through package.json to find scripts."*
+
+*"The AI diagnostics saved me 2 hours debugging a cryptic npm error."*
+
+*"Just type 3 letters and hit enter. That's it."*
+
+<br>
+
+[Why Palrun](#why-palrun) · [Install](#install) · [How It Works](#how-it-works) · [AI Features](#ai-features) · [Commands](#commands)
+
+</div>
+
+---
+
+## Why Palrun
+
+Every project has commands scattered everywhere. npm scripts in package.json. Cargo commands in Cargo.toml. Make targets. Docker compose. Task runners. You end up:
+
+- Scrolling through 50 npm scripts to find the right one
+- Forgetting that obscure cargo command you used last week
+- Grepping through config files looking for targets
+- Context-switching to docs constantly
+
+Palrun fixes this. It scans your project, finds every command, and gives you a fuzzy-searchable interface. Type 2-3 characters, hit enter, done.
+
+The AI features are optional but powerful — generate commands from natural language, explain what complex commands do, diagnose errors without leaving your terminal.
+
+---
+
+## Install
+
+```bash
+# Homebrew (macOS/Linux) - Recommended
+brew install GLINCKER/palrun/palrun
+
+# Cargo
 cargo install palrun
+
+# NPM
+npm install -g @glincker/palrun
+
+# Download binary
+# https://github.com/GLINCKER/palrun/releases
 ```
 
-### From Source
-
-```bash
-git clone https://github.com/GLINCKER/palrun.git
-cd palrun
-cargo install --path .
-```
-
-### Homebrew (macOS/Linux)
-
-```bash
-brew tap GLINCKER/tap
-brew install palrun
-```
-
-### NPM (Node.js users)
-
-```bash
-npm install -g @glinr/palrun
-```
-
-### Quick Install Script
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/GLINCKER/palrun/main/scripts/install.sh | bash
-```
-
-## Quick Start
-
-### 1. Set Up Your Project
-
-Initialize Palrun in your project with intelligent detection:
-
-```bash
-palrun setup
-```
-
-This will:
-- Detect your project type (Node.js, Rust, Python, etc.)
-- Create `.palrun.toml` with recommended settings
-- Generate `.palrun/runbooks/` with sample workflows
-- Suggest relevant configurations
-
-Options:
-```bash
-palrun setup --dry-run          # Preview what would be created
-palrun setup --force            # Overwrite existing files
-palrun setup --non-interactive  # Use defaults without prompts
-```
-
-### 2. Interactive Mode
-
-Launch the command palette:
+Then just run:
 
 ```bash
 palrun
 ```
 
-Use arrow keys to navigate, type to search, and press Enter to execute.
+---
 
-### List Commands
+## How It Works
 
-Show all discovered commands:
+### 1. Auto-Discovery
+
+Palrun scans your project and finds commands from:
+
+| Source | Files | What It Finds |
+|--------|-------|---------------|
+| **Node.js** | `package.json` | npm/yarn/pnpm/bun scripts |
+| **Rust** | `Cargo.toml` | cargo build, test, run, clippy |
+| **Go** | `go.mod` | go build, test, run |
+| **Python** | `pyproject.toml` | pytest, poetry, pdm commands |
+| **Make** | `Makefile` | All make targets |
+| **Docker** | `docker-compose.yml` | compose up/down/logs |
+| **Task** | `Taskfile.yml` | task commands |
+| **Monorepos** | `nx.json`, `turbo.json` | nx/turbo commands |
+
+### 2. Fuzzy Search
+
+Type a few characters, palrun finds the match:
+
+- `bui` → `cargo build`
+- `td` → `npm run test:debug`
+- `dcu` → `docker compose up`
+
+Powered by [nucleo](https://github.com/helix-editor/nucleo) — the same engine behind Helix editor.
+
+### 3. Context-Aware
+
+Commands are ranked by proximity to your current directory. Working in `src/api/`? API-related commands appear first.
+
+---
+
+## AI Features
+
+Palrun supports multiple AI providers with automatic fallback:
+
+| Provider | API Key Env Var | Best For |
+|----------|-----------------|----------|
+| **Claude** | `ANTHROPIC_API_KEY` | Complex reasoning |
+| **OpenAI** | `OPENAI_API_KEY` | Fast, general purpose |
+| **Azure OpenAI** | `AZURE_OPENAI_API_KEY` | Enterprise deployments |
+| **Grok** | `XAI_API_KEY` | Alternative option |
+| **Ollama** | None (local) | Offline, privacy |
+
+### Generate Commands
 
 ```bash
-palrun list
+palrun ai "run tests with coverage"
+# → cargo test --all-features -- --nocapture
 ```
 
-Output as JSON:
+### Explain Commands
 
 ```bash
-palrun list --format json
+palrun ai explain "git rebase -i HEAD~5"
+# Explains what interactive rebase does
 ```
 
-Filter by source type:
+### Diagnose Errors
 
 ```bash
-palrun list --source cargo
-palrun list --source npm
+palrun ai diagnose "npm ERR! peer dep missing: react@18"
+# Suggests: npm install react@18 --save-peer
 ```
 
-### Scan Project
+### Configuration
 
-Preview what commands would be discovered:
+Set keys via environment variables or config file:
 
 ```bash
-palrun scan
-palrun scan --recursive
+# Environment (recommended)
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+# Or in ~/.config/palrun/palrun.toml
+[ai.claude]
+api_key = "sk-ant-..."
 ```
 
-### Execute Directly
+---
 
-Run a command by name:
+## Commands
+
+### Interactive Mode
 
 ```bash
-palrun exec build
-palrun exec "npm test"
+palrun              # Launch TUI
+palrun list         # List all commands
+palrun list --json  # JSON output for scripting
 ```
 
-Skip confirmation:
+### Direct Execution
 
 ```bash
-palrun exec build -y
+palrun exec build        # Run by name
+palrun exec "npm test"   # Run specific command
+palrun exec build -y     # Skip confirmation
 ```
+
+### Project Setup
+
+```bash
+palrun setup              # Initialize for your project
+palrun setup --dry-run    # Preview changes
+```
+
+### IDE Integration
+
+Generate slash commands for AI coding tools:
+
+```bash
+palrun slash generate claude   # For Claude Code
+palrun slash generate cursor   # For Cursor
+palrun slash generate aider    # For Aider
+```
+
+---
 
 ## Shell Integration
 
-Add to your shell configuration for keyboard shortcuts:
-
-### Bash
-
-```bash
-eval "$(palrun init bash)"
-```
-
-### Zsh
-
-```bash
-eval "$(palrun init zsh)"
-```
-
-### Fish
-
-```fish
-palrun init fish | source
-```
-
-### PowerShell
-
-```powershell
-palrun init powershell | Invoke-Expression
-```
-
-## Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| `Enter` | Execute selected command |
-| `Up/Down` | Navigate command list |
-| `Ctrl+N/P` | Navigate (vim-style) |
-| `Ctrl+U` | Clear search input |
-| `Escape` | Quit |
-| `Tab` | Toggle preview |
-| `Ctrl+Space` | Toggle context-aware filtering |
-
-## Configuration
-
-Configuration file location: `~/.config/palrun/config.toml`
-
-```toml
-# Theme settings
-[theme]
-highlight_color = "cyan"
-
-# Shell settings
-[shell]
-default = "bash"
-
-# Scanner settings
-[scanner]
-exclude_patterns = ["node_modules", "target", ".git"]
-```
-
-Show config path:
-
-```bash
-palrun config --path
-```
-
-## Shell Completions
-
-Generate shell completions:
+Add keyboard shortcuts to your shell:
 
 ```bash
 # Bash
-palrun completions bash > /etc/bash_completion.d/palrun
+eval "$(palrun init bash)"
 
 # Zsh
-palrun completions zsh > ~/.zfunc/_palrun
+eval "$(palrun init zsh)"
 
 # Fish
-palrun completions fish > ~/.config/fish/completions/palrun.fish
+palrun init fish | source
+
+# PowerShell
+palrun init powershell | Invoke-Expression
 ```
 
-## Plugin System
+---
 
-Palrun supports custom scanners through a plugin architecture. Example plugins are included:
+## Configuration
 
-- **cargo-scanner**: Enhanced Cargo.toml scanning
-- **composer-scanner**: PHP Composer support
-- **gradle-scanner**: Gradle build tool support
-- **maven-scanner**: Maven build tool support
-- **poetry-scanner**: Python Poetry support
+Create `~/.config/palrun/palrun.toml`:
 
-See `examples/plugins/` for implementation details.
+```toml
+[general]
+confirm_dangerous = true
+
+[ui]
+theme = "default"
+show_preview = true
+show_icons = true
+
+[ai]
+provider = "claude"
+fallback_enabled = true
+
+[ai.claude]
+model = "claude-sonnet-4-20250514"
+```
+
+For API keys, use environment variables or the system config file — never commit secrets to your repo.
+
+---
+
+## Why Not Just Use...
+
+| Alternative | Palrun Advantage |
+|-------------|------------------|
+| `cat package.json \| jq` | One command, fuzzy search, instant |
+| fzf + custom scripts | Zero setup, auto-discovers everything |
+| IDE command palette | Works in terminal, any project type |
+| Memorizing commands | You have better things to remember |
+
+**For AI tools:** Pre-computed command index saves ~1500 tokens per query. AI doesn't need to scan your project.
+
+---
 
 ## Development
 
-### Building
-
 ```bash
-cargo build
+# Build
 cargo build --release
-```
 
-### Testing
-
-```bash
-cargo test
+# Test (527 tests)
 cargo test --all-features
+
+# Run locally
+cargo run -- list
 ```
 
-### Running
+### Git Hooks
+
+Local quality gates (auto-installed):
 
 ```bash
-cargo run
-cargo run -- list
-cargo run -- scan
+./.githooks/install.sh
+# pre-commit: format, clippy, build
+# pre-push: tests, security audit
+# commit-msg: conventional commits
 ```
 
-## Features Status
+---
 
-### Completed
-- [x] AI-powered command suggestions (Claude, OpenAI, Ollama)
-- [x] Runbook system for team workflows
-- [x] Command history and analytics
-- [x] Git integration (branch switching, status)
-- [x] Environment management (nvm, pyenv, etc.)
-- [x] Plugin system with SDK
-- [x] MCP (Model Context Protocol) integration
-- [x] Advanced search and filtering
-- [x] Theme support (multiple built-in themes)
+## Roadmap
 
-### Coming Soon
-- [ ] Cloud sync and team collaboration
+- [x] Multi-provider AI (Claude, OpenAI, Azure, Grok, Ollama)
+- [x] Agentic workflow system
+- [x] IDE slash command generation
+- [x] Hierarchical config with secrets management
+- [ ] MCP server mode for AI agents
+- [ ] Chat history and session persistence
+- [ ] Streaming AI responses
 - [ ] VS Code extension
-- [ ] Signed binaries for macOS/Windows
-- [ ] More IDE integrations
+
+---
 
 ## Contributing
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-- Bug reports and fixes
-- New project type scanners
-- Performance improvements
-- Documentation updates
+```bash
+git clone https://github.com/GLINCKER/palrun.git
+cd palrun
+cargo test
+cargo run
+```
+
+---
 
 ## License
 
-MIT License - free for personal and commercial use.
+MIT License — free for personal and commercial use.
 
-See [LICENSE](LICENSE) for details.
+---
 
-## Support
+<div align="center">
 
-- Documentation: [GitHub Wiki](https://github.com/GLINCKER/palrun/wiki)
-- Issues: [GitHub Issues](https://github.com/GLINCKER/palrun/issues)
-- Discussions: [GitHub Discussions](https://github.com/GLINCKER/palrun/discussions)
+**Your terminal has hundreds of commands. Palrun finds the right one instantly.**
+
+[GitHub](https://github.com/GLINCKER/palrun) · [Issues](https://github.com/GLINCKER/palrun/issues) · [Discussions](https://github.com/GLINCKER/palrun/discussions)
 
 Built by [GLINCKER](https://glincker.com)
+
+</div>

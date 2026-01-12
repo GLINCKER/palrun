@@ -438,13 +438,9 @@ mod tests {
 
     #[test]
     fn test_command_prompt_building() {
-        let context = ProjectContext {
-            project_name: "test-project".to_string(),
-            project_type: "node".to_string(),
-            available_commands: vec!["npm run build".to_string(), "npm test".to_string()],
-            current_directory: PathBuf::from("/project"),
-            recent_commands: vec![],
-        };
+        let mut context = ProjectContext::new("test-project", PathBuf::from("/project"));
+        context.project_type = "node".to_string();
+        context.available_commands = vec!["npm run build".to_string(), "npm test".to_string()];
 
         let prompt = OllamaProvider::build_command_prompt("run tests", &context);
 

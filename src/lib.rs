@@ -101,7 +101,19 @@ pub use ai::{
     OllamaProvider, ProjectContext, ShellExecutor, ToolExecutor,
 };
 
+pub mod commands;
 pub mod runbook;
+pub mod workflow;
+
+pub use commands::{
+    default_registry, CommandArg, CommandCategory, CommandTarget, PalrunCommand,
+    SlashCommandRegistry, PALRUN_COMMANDS,
+};
+pub use workflow::{
+    analyze_codebase, CodebaseAnalysis, Decision, ExecutionSummary, ExecutorConfig, Phase,
+    PhaseStatus, PlanDoc, PlanGenerator, ProjectDoc, RoadmapDoc, StateDoc, Task, TaskExecutor,
+    TaskResult, TaskStatus, TaskType, VerificationResult, WorkflowContext,
+};
 
 #[cfg(feature = "git")]
 pub mod git;

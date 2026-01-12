@@ -20,6 +20,7 @@ mod parallel;
 mod registry;
 mod resilience;
 mod retry;
+mod trust;
 
 pub use analytics::{
     Analytics, AnalyticsReport, CommandStats, Insight, InsightCategory, TimePeriod,
@@ -39,6 +40,10 @@ pub use command::{Command, CommandSource};
 pub use config::Config;
 #[cfg(feature = "git")]
 pub use config::HooksConfig;
+#[cfg(feature = "ai")]
+pub use config::{
+    AiConfig, AzureOpenAIConfig, ClaudeConfig, GrokConfig, OllamaConfig, OpenAIConfig,
+};
 pub use context::{CommandContext, ContextFilter, LocationIndicator};
 pub use degradation::{
     with_fallback, DegradationManager, DegradationReason, DegradedFeature, FallbackResult, Feature,
@@ -58,3 +63,4 @@ pub use parallel::{
 pub use registry::CommandRegistry;
 pub use resilience::{execute_resilient, FeatureResilience, ResilienceManager, ResilientResult};
 pub use retry::{retry, retry_async, CircuitBreaker, CircuitState, RetryConfig, RetryResult};
+pub use trust::{trust_warning_message, TrustDecision, TrustStore};

@@ -11,6 +11,9 @@ use crate::App;
 pub fn handle_events(key: KeyEvent, app: &mut App) {
     // Handle different modes
     match &app.mode {
+        AppMode::TrustConfirmation => {
+            handle_trust_confirmation_mode(key, app);
+        }
         AppMode::ExecutionResult => {
             handle_result_mode(key, app);
         }
@@ -38,9 +41,70 @@ pub fn handle_events(key: KeyEvent, app: &mut App) {
         AppMode::ContextMenu => {
             handle_context_menu_mode(key, app);
         }
+        AppMode::Workflow => {
+            handle_workflow_mode(key, app);
+        }
+        #[cfg(feature = "ai")]
+        AppMode::AiChat => {
+            handle_ai_chat_mode(key, app);
+        }
+        #[cfg(feature = "ai")]
+        AppMode::AiSetup => {
+            handle_ai_setup_mode(key, app);
+        }
         _ => {
             handle_normal_mode(key, app);
         }
+    }
+}
+
+/// Handle input in trust confirmation mode.
+fn handle_trust_confirmation_mode(key: KeyEvent, app: &mut App) {
+    match key.code {
+        // Navigate between options
+        KeyCode::Left | KeyCode::Up | KeyCode::Char('h' | 'k') => {
+            app.trust_selected = 0;
+        }
+        KeyCode::Right | KeyCode::Down | KeyCode::Char('l' | 'j') => {
+            app.trust_selected = 1;
+        }
+        KeyCode::Tab => {
+            app.trust_selected = if app.trust_selected == 0 { 1 } else { 0 };
+        }
+
+        // Confirm selection
+        KeyCode::Enter => {
+            if app.trust_selected == 0 {
+                // User trusts the directory
+                if let Err(e) = app.trust_store.trust_directory(&app.cwd) {
+                    app.status_message = Some(format!("Failed to save trust: {}", e));
+                }
+                app.mode = AppMode::Normal;
+            } else {
+                // User declined - exit
+                app.quit();
+            }
+        }
+
+        // Quick shortcuts
+        KeyCode::Char('y' | 'Y') => {
+            // Trust and proceed
+            if let Err(e) = app.trust_store.trust_directory(&app.cwd) {
+                app.status_message = Some(format!("Failed to save trust: {}", e));
+            }
+            app.mode = AppMode::Normal;
+        }
+        KeyCode::Char('n' | 'N') | KeyCode::Esc => {
+            // Decline and exit
+            app.quit();
+        }
+
+        // Ctrl+C to quit
+        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.quit();
+        }
+
+        _ => {}
     }
 }
 
@@ -258,6 +322,12 @@ fn handle_normal_mode(key: KeyEvent, app: &mut App) {
             app.show_palette();
         }
 
+        // Toggle to AI chat mode (Ctrl+T)
+        #[cfg(feature = "ai")]
+        KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.show_ai_chat();
+        }
+
         // Context menu for selected command (. when input is empty)
         KeyCode::Char('.') if app.input.is_empty() => {
             app.show_context_menu();
@@ -429,6 +499,381 @@ fn handle_context_menu_mode(key: KeyEvent, app: &mut App) {
         }
         _ => {}
     }
+}
+
+/// Handle input in workflow mode.
+fn handle_workflow_mode(key: KeyEvent, app: &mut App) {
+    match key.code {
+        // Dismiss workflow
+        KeyCode::Esc | KeyCode::Char('q') | KeyCode::Enter => {
+            app.dismiss_workflow();
+        }
+        // Ctrl+C to quit completely
+        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.quit();
+        }
+        // Reload workflow context
+        KeyCode::Char('r') => {
+            app.load_workflow_context();
+            app.set_status("Workflow context reloaded");
+        }
+        _ => {}
+    }
+}
+
+/// Handle input in AI chat mode.
+#[cfg(feature = "ai")]
+fn handle_ai_chat_mode(key: KeyEvent, app: &mut App) {
+    match key.code {
+        // Toggle back to command palette (Ctrl+T)
+        KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.dismiss_ai_chat();
+        }
+        // Dismiss AI chat
+        KeyCode::Esc => {
+            app.dismiss_ai_chat();
+        }
+        // Ctrl+C to quit completely
+        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.quit();
+        }
+        // Scroll up through chat history
+        KeyCode::Up | KeyCode::PageUp => {
+            app.ai_chat_scroll_up();
+        }
+        // Scroll down through chat history
+        KeyCode::Down | KeyCode::PageDown => {
+            app.ai_chat_scroll_down();
+        }
+        // Go to bottom (latest)
+        KeyCode::End => {
+            app.ai_chat_scroll_to_bottom();
+        }
+        // Send message
+        KeyCode::Enter => {
+            if !app.ai_chat_input.is_empty() && !app.ai_thinking {
+                let input = std::mem::take(&mut app.ai_chat_input);
+
+                // Check for slash commands first
+                if input.starts_with('/') {
+                    handle_ai_slash_command(&input, app);
+                    return;
+                }
+
+                // Check if we have an AI provider available
+                match &app.ai_status {
+                    Some(status) if status.contains("Ollama") => {
+                        // Build context-aware system prompt
+                        let context = build_ai_context(app);
+                        let system_prompt = context.build_system_prompt();
+
+                        // Clone history before adding new message
+                        let history: Vec<(String, String)> = app.ai_chat_history.clone();
+
+                        // Show user's message immediately and auto-scroll to bottom
+                        app.ai_chat_history.push((input.clone(), String::new()));
+                        app.ai_chat_scroll_to_bottom();
+                        app.ai_thinking = true;
+                        app.set_status("Thinking...");
+
+                        // Create runtime for async call
+                        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build();
+
+                        match rt {
+                            Ok(runtime) => {
+                                let result = runtime.block_on(async {
+                                    call_ollama(&input, &system_prompt, &history).await
+                                });
+
+                                app.ai_thinking = false;
+
+                                // Update the last entry with the response
+                                if let Some(last) = app.ai_chat_history.last_mut() {
+                                    match result {
+                                        Ok(response) => {
+                                            last.1 = response;
+                                            app.set_status("AI response received");
+                                        }
+                                        Err(e) => {
+                                            last.1 = format!("Error: {}", e);
+                                            app.set_status("Ollama error - is it running?");
+                                        }
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                app.ai_thinking = false;
+                                if let Some(last) = app.ai_chat_history.last_mut() {
+                                    last.1 = "Failed to create async runtime".to_string();
+                                }
+                            }
+                        }
+                    }
+                    Some(status) => {
+                        // Other provider (Claude, OpenAI, etc.) - placeholder
+                        app.ai_chat_history.push((
+                            input.clone(),
+                            format!("Using {} (API call not yet implemented)", status),
+                        ));
+                        app.set_status("API providers coming soon");
+                    }
+                    None => {
+                        // No AI provider - show setup instructions
+                        app.ai_chat_history.push((
+                            input,
+                            "No AI provider available.\n\nSetup options:\n\
+                            • Ollama (local): Install from ollama.ai, run 'ollama run llama3.2'\n\
+                            • Claude: Set ANTHROPIC_API_KEY environment variable\n\
+                            • OpenAI: Set OPENAI_API_KEY environment variable\n\
+                            • Grok: Set XAI_API_KEY environment variable"
+                                .to_string(),
+                        ));
+                        app.set_status("No AI provider configured");
+                    }
+                }
+            }
+        }
+        // Input editing
+        KeyCode::Char(c) => {
+            app.ai_chat_input.push(c);
+        }
+        KeyCode::Backspace => {
+            app.ai_chat_input.pop();
+        }
+        _ => {}
+    }
+}
+
+/// Handle AI chat slash commands.
+#[cfg(feature = "ai")]
+fn handle_ai_slash_command(cmd: &str, app: &mut App) {
+    let parts: Vec<&str> = cmd.splitn(2, ' ').collect();
+    let command = parts[0].to_lowercase();
+    let _args = parts.get(1).map(|s| s.trim());
+
+    match command.as_str() {
+        "/clear" => {
+            app.ai_chat_history.clear();
+            app.ai_chat_scroll = 0;
+            app.set_status("Chat history cleared");
+        }
+        "/model" | "/models" => {
+            app.show_ai_setup();
+        }
+        "/context" => {
+            // Show current context in chat
+            let context = build_ai_context(app);
+            let git_info = if let Some(ref git) = app.git_info {
+                format!("Branch: {}", git.branch.as_deref().unwrap_or("detached"))
+            } else {
+                "Not a git repo".to_string()
+            };
+            let context_info = format!(
+                "**Current Context:**\n\
+                 - Directory: {}\n\
+                 - Project: {}\n\
+                 - Commands: {} discovered\n\
+                 - Git: {}",
+                app.cwd.display(),
+                context.project_type,
+                app.registry.len(),
+                git_info
+            );
+            app.ai_chat_history.push(("/context".to_string(), context_info));
+        }
+        "/help" => {
+            let help_text = "**AI Chat Commands:**\n\
+                 - `/clear` - Clear chat history\n\
+                 - `/model` - Manage AI models\n\
+                 - `/context` - Show current project context\n\
+                 - `/help` - Show this help\n\
+                 - `Ctrl+T` - Switch to Commands mode\n\
+                 - `Esc` - Exit AI chat";
+            app.ai_chat_history.push(("/help".to_string(), help_text.to_string()));
+        }
+        _ => {
+            // Unknown command
+            app.ai_chat_history.push((
+                cmd.to_string(),
+                format!("Unknown command: `{}`\nType `/help` for available commands.", command),
+            ));
+        }
+    }
+}
+
+/// Handle input in AI setup mode (model management).
+#[cfg(feature = "ai")]
+fn handle_ai_setup_mode(key: KeyEvent, app: &mut App) {
+    match key.code {
+        // Dismiss AI setup or cancel pending delete
+        KeyCode::Esc => {
+            if app.ai_delete_pending.is_some() {
+                app.cancel_delete_ai_model();
+            } else {
+                app.dismiss_ai_setup();
+            }
+        }
+        // Ctrl+C to quit completely
+        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.quit();
+        }
+        // Navigate model list (also cancels pending delete)
+        KeyCode::Up | KeyCode::Char('k') if app.ai_model_input.is_empty() => {
+            app.ai_delete_pending = None; // Cancel pending delete on navigation
+            if app.ai_model_selected > 0 {
+                app.ai_model_selected -= 1;
+            }
+        }
+        KeyCode::Down | KeyCode::Char('j') if app.ai_model_input.is_empty() => {
+            app.ai_delete_pending = None; // Cancel pending delete on navigation
+            if !app.ai_models.is_empty() && app.ai_model_selected < app.ai_models.len() - 1 {
+                app.ai_model_selected += 1;
+            }
+        }
+        // Use selected model (Enter)
+        KeyCode::Enter => {
+            app.ai_delete_pending = None; // Cancel pending delete
+            if !app.ai_model_input.is_empty() {
+                // Pull the entered model name
+                let model = app.ai_model_input.clone();
+                app.pull_ai_model(&model);
+            } else if !app.ai_models.is_empty() {
+                // Use selected model
+                app.use_selected_model();
+            }
+        }
+        // Refresh model list
+        KeyCode::Char('r')
+            if !key.modifiers.contains(KeyModifiers::CONTROL) && app.ai_model_input.is_empty() =>
+        {
+            app.ai_delete_pending = None;
+            app.refresh_ai_models();
+        }
+        // Delete selected model (requires confirmation)
+        KeyCode::Char('d') if app.ai_model_input.is_empty() => {
+            if app.ai_delete_pending.is_some() {
+                // Second press - confirm delete
+                app.confirm_delete_ai_model();
+            } else {
+                // First press - request confirmation
+                app.request_delete_ai_model();
+            }
+        }
+        // Pull/download model (type model name)
+        KeyCode::Char(c) => {
+            app.ai_delete_pending = None; // Cancel pending delete when typing
+            app.ai_model_input.push(c);
+        }
+        KeyCode::Backspace => {
+            app.ai_model_input.pop();
+        }
+        _ => {}
+    }
+}
+
+/// Build AI context from app state.
+#[cfg(feature = "ai")]
+fn build_ai_context(app: &App) -> crate::ai::ProjectContext {
+    use crate::ai::ProjectContext;
+
+    let mut context = ProjectContext::from_current_dir().unwrap_or_default();
+
+    // Override with app's current directory
+    context.current_directory = app.cwd.clone();
+
+    // Add available commands from registry
+    let commands: Vec<String> =
+        app.registry.get_all().iter().take(30).map(|cmd| cmd.name.clone()).collect();
+    context.available_commands = commands;
+
+    // Add recent commands from history
+    if let Some(ref manager) = app.history_manager {
+        let recent: Vec<String> =
+            manager.get_recent(5).iter().map(|e| e.command_name.clone()).collect();
+        context.recent_commands = recent;
+    }
+
+    // Get project name from directory
+    context.project_name =
+        app.cwd.file_name().and_then(|n| n.to_str()).unwrap_or("project").to_string();
+
+    context
+}
+
+/// Call Ollama API with context-aware system prompt and conversation history.
+#[cfg(feature = "ai")]
+async fn call_ollama(
+    prompt: &str,
+    system_prompt: &str,
+    history: &[(String, String)],
+) -> anyhow::Result<String> {
+    let client = reqwest::Client::new();
+    let base_url =
+        std::env::var("OLLAMA_HOST").unwrap_or_else(|_| "http://localhost:11434".to_string());
+    let model = std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| "llama3.2".to_string());
+
+    #[derive(serde::Serialize)]
+    struct OllamaChatMessage {
+        role: String,
+        content: String,
+    }
+
+    #[derive(serde::Serialize)]
+    struct OllamaChatRequest {
+        model: String,
+        messages: Vec<OllamaChatMessage>,
+        stream: bool,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct OllamaChatMessageResponse {
+        content: String,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct OllamaChatResponse {
+        message: OllamaChatMessageResponse,
+    }
+
+    // Build messages with system prompt, history, and current message
+    let mut messages =
+        vec![OllamaChatMessage { role: "system".to_string(), content: system_prompt.to_string() }];
+
+    // Add conversation history (last 5 exchanges to avoid token overflow)
+    for (user_msg, ai_msg) in history.iter().rev().take(5).rev() {
+        messages.push(OllamaChatMessage { role: "user".to_string(), content: user_msg.clone() });
+        if !ai_msg.is_empty() {
+            messages
+                .push(OllamaChatMessage { role: "assistant".to_string(), content: ai_msg.clone() });
+        }
+    }
+
+    // Add current user message
+    messages.push(OllamaChatMessage { role: "user".to_string(), content: prompt.to_string() });
+
+    let request = OllamaChatRequest { model: model.clone(), messages, stream: false };
+
+    let response = client
+        .post(format!("{}/api/chat", base_url))
+        .json(&request)
+        .timeout(std::time::Duration::from_secs(120))
+        .send()
+        .await?;
+
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        anyhow::bail!(
+            "Model '{}' not found.\n\nTo install it, run:\n  ollama pull {}\n\nOr set OLLAMA_MODEL to an installed model.",
+            model,
+            model
+        );
+    }
+
+    if !response.status().is_success() {
+        anyhow::bail!("Ollama error ({}). Is it running?", response.status());
+    }
+
+    let result: OllamaChatResponse = response.json().await?;
+    Ok(result.message.content.trim().to_string())
 }
 
 #[cfg(test)]

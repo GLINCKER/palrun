@@ -278,3 +278,180 @@ fn test_invalid_subcommand() {
 fn test_invalid_flag() {
     palrun().arg("--invalid-flag-xyz").assert().failure();
 }
+
+// ============================================================================
+// Exec Command Tests
+// ============================================================================
+
+#[test]
+fn test_exec_command_help() {
+    palrun()
+        .args(["exec", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Execute"));
+}
+
+#[test]
+fn test_exec_with_dry_run() {
+    let temp = assert_fs::TempDir::new().unwrap();
+
+    temp.child("package.json")
+        .write_str(r#"{"name": "test", "scripts": {"echo": "echo hello"}}"#)
+        .unwrap();
+
+    // Dry run should show the command without executing
+    palrun()
+        .args(["exec", "npm run echo", "--dry-run"])
+        .current_dir(temp.path())
+        .assert()
+        .success();
+
+    temp.close().unwrap();
+}
+
+// ============================================================================
+// Config Command Tests
+// ============================================================================
+
+#[test]
+fn test_config_command_help() {
+    palrun()
+        .args(["config", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("config").or(predicate::str::contains("Config")));
+}
+
+#[test]
+fn test_config_display() {
+    palrun().arg("config").assert().success();
+}
+
+#[test]
+fn test_config_path_flag() {
+    palrun().args(["config", "--path"]).assert().success();
+}
+
+// ============================================================================
+// AI Command Tests
+// ============================================================================
+
+#[test]
+fn test_ai_command_help() {
+    palrun().args(["ai", "--help"]).assert().success().stdout(predicate::str::contains("AI"));
+}
+
+// ============================================================================
+// Hooks Command Tests
+// ============================================================================
+
+#[test]
+fn test_hooks_command_help() {
+    palrun()
+        .args(["hooks", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Git").or(predicate::str::contains("hook")));
+}
+
+// ============================================================================
+// Env Command Tests
+// ============================================================================
+
+#[test]
+fn test_env_command_help() {
+    palrun()
+        .args(["env", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("environment").or(predicate::str::contains("env")));
+}
+
+// ============================================================================
+// Runbook Command Tests
+// ============================================================================
+
+#[test]
+fn test_runbook_command_help() {
+    palrun()
+        .args(["runbook", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("runbook").or(predicate::str::contains("Run")));
+}
+
+// ============================================================================
+// Secrets Command Tests
+// ============================================================================
+
+#[test]
+fn test_secrets_command_help() {
+    palrun()
+        .args(["secrets", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("secret").or(predicate::str::contains("Secret")));
+}
+
+// ============================================================================
+// Environment Variable Tests
+// ============================================================================
+
+#[test]
+fn test_respects_no_color_env() {
+    palrun().arg("list").env("NO_COLOR", "1").assert().success();
+}
+
+#[test]
+fn test_respects_palrun_config_env() {
+    let temp = assert_fs::TempDir::new().unwrap();
+
+    // Create a config file
+    temp.child("palrun.toml").write_str("[general]\ndefault_source = \"cargo\"\n").unwrap();
+
+    palrun()
+        .arg("list")
+        .env("PALRUN_CONFIG", temp.child("palrun.toml").path().to_str().unwrap())
+        .assert()
+        .success();
+
+    temp.close().unwrap();
+}
+
+// ============================================================================
+// Monorepo Tests
+// ============================================================================
+
+#[test]
+fn test_scan_npm_workspace() {
+    let temp = assert_fs::TempDir::new().unwrap();
+
+    // Create root package.json with workspaces
+    temp.child("package.json")
+        .write_str(r#"{"name": "root", "workspaces": ["packages/*"], "scripts": {"build:all": "echo build"}}"#)
+        .unwrap();
+
+    // Create a workspace package
+    temp.child("packages/pkg-a/package.json")
+        .write_str(r#"{"name": "pkg-a", "scripts": {"build": "echo build a"}}"#)
+        .unwrap();
+
+    palrun().arg("list").current_dir(temp.path()).assert().success();
+
+    temp.close().unwrap();
+}
+
+// ============================================================================
+// Output Format Tests
+// ============================================================================
+
+#[test]
+fn test_list_table_format() {
+    palrun().args(["list", "--format", "table"]).assert().success();
+}
+
+#[test]
+fn test_list_simple_format() {
+    palrun().args(["list", "--format", "simple"]).assert().success();
+}
