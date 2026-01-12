@@ -43,12 +43,6 @@ allow = [
     "Unlicense",
 ]
 
-# Allow dual-licensed crates under MIT OR Apache-2.0
-copyleft = "warn"
-
-# Crates with unknown licenses
-unlicensed = "deny"
-
 # Private crates (not published)
 private = { ignore = true }
 

@@ -1,0 +1,111 @@
+name: Update Homebrew
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to update (e.g., 0.2.0-beta.2)'
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    name: Update Formula
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download release assets
+        run: |
+          VERSION=${{ github.event.inputs.version }}
+          mkdir -p artifacts
+
+          # Download all platform tarballs
+          for target in aarch64-apple-darwin x86_64-apple-darwin aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu; do
+            curl -sL "https://github.com/GLINCKER/palrun/releases/download/v${VERSION}/palrun-${target}.tar.gz" \
+              -o "artifacts/palrun-${target}.tar.gz"
+          done
+
+      - name: Update formula
+        run: |
+          VERSION=${{ github.event.inputs.version }}
+
+          SHA_DARWIN_ARM=$(sha256sum artifacts/palrun-aarch64-apple-darwin.tar.gz | cut -d' ' -f1)
+          SHA_DARWIN_X64=$(sha256sum artifacts/palrun-x86_64-apple-darwin.tar.gz | cut -d' ' -f1)
+          SHA_LINUX_ARM=$(sha256sum artifacts/palrun-aarch64-unknown-linux-gnu.tar.gz | cut -d' ' -f1)
+          SHA_LINUX_X64=$(sha256sum artifacts/palrun-x86_64-unknown-linux-gnu.tar.gz | cut -d' ' -f1)
+
+          cat > HomebrewFormula/palrun.rb << EOF
+          class Palrun < Formula
+            desc "AI command palette for your terminal - discover and run project commands instantly"
+            homepage "https://github.com/GLINCKER/palrun"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/GLINCKER/palrun/releases/download/v${VERSION}/palrun-aarch64-apple-darwin.tar.gz"
+                sha256 "${SHA_DARWIN_ARM}"
+              end
+              on_intel do
+                url "https://github.com/GLINCKER/palrun/releases/download/v${VERSION}/palrun-x86_64-apple-darwin.tar.gz"
+                sha256 "${SHA_DARWIN_X64}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "https://github.com/GLINCKER/palrun/releases/download/v${VERSION}/palrun-aarch64-unknown-linux-gnu.tar.gz"
+                sha256 "${SHA_LINUX_ARM}"
+              end
+              on_intel do
+                url "https://github.com/GLINCKER/palrun/releases/download/v${VERSION}/palrun-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "${SHA_LINUX_X64}"
+              end
+            end
+
+            def install
+              bin.install "palrun"
+              bin.install "pal"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/palrun --version")
+            end
+          end
+          EOF
+
+      - name: Create PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ github.event.inputs.version }}
+          BRANCH="chore/homebrew-v${VERSION}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Force delete existing branch
+          git push origin --delete "$BRANCH" 2>/dev/null || true
+
+          git checkout -b "$BRANCH"
+          git add HomebrewFormula/palrun.rb
+          git commit -m "chore(homebrew): update formula to v${VERSION}"
+          git push -u origin "$BRANCH" --force
+
+          # Check if PR already exists
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number -q '.[0].number')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #$EXISTING_PR already exists"
+          else
+            gh pr create \
+              --title "chore(homebrew): update formula to v${VERSION}" \
+              --body "Auto-generated PR to update Homebrew formula for release v${VERSION}" \
+              --base main \
+              --head "$BRANCH"
+          fi
